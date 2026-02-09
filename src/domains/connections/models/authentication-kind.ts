@@ -1,4 +1,4 @@
 export enum AuthenticationKind {
-   NONE,
-   BASIC
+   NONE = "NONE",
+   BASIC = "BASIC"
 }

@@ -1,6 +1,6 @@
 export enum ConnectionType {
-   Standalone,
-   ReplicaSet,
-   ShardedCluster,
-   DnsSeedList
+   Standalone = "Standalone",
+   ReplicaSet = "ReplicaSet",
+   ShardedCluster = "SharedCluster",
+   DnsSeedList = "DnsSeedList"
 }

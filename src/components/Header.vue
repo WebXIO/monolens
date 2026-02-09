@@ -20,7 +20,7 @@ import DropdownMenuSeparator from '@/components/ui/dropdown-menu/DropdownMenuSep
 
          <DropdownMenu>
             <DropdownMenuTrigger as-child>
-               <Button variant="ghost" class="h-8 gap-2 px-3 text-sm">G</Button>
+               <Button variant="ghost" class="h-8 gap-2 px-3 text-sm"></Button>
                <ChevronDown class="h-3.5 w-3.5 text-muted-foreground" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">

@@ -1,9 +1,11 @@
 use tauri::Manager;
 
-use crate::connector::repositories::{connector_repository::ConnectorRepository, file_repository::FileRepository};
+use crate::{connection_handler::connection_handler::ConnectionHandler, connector::repositories::{connector_repository::ConnectorRepository, file_repository::FileRepository}};
 
 pub mod connector;
 pub mod drivers;
+pub mod connection_handler;
+pub mod database;
 
 pub struct AppState {
     pub connection_repository: Box<dyn ConnectorRepository>,
@@ -13,11 +15,6 @@ pub fn create_app_state(repository: impl ConnectorRepository + 'static) -> AppSt
     AppState {
         connection_repository: Box::new(repository),
     }
-}
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -30,11 +27,14 @@ pub fn run() {
             
             let state = create_app_state(repository);
             app.manage(state);
+            app.manage(ConnectionHandler::new());
             
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            database::commands::test_connection::test_connection
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

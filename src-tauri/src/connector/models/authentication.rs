@@ -12,6 +12,7 @@ pub struct AuthenticationOptions {
    pub kind: AuthenticationKind,
    pub username: Option<String>,
    pub password: Option<String>,
+   pub database: Option<String>
 }
 
 
@@ -20,7 +21,8 @@ impl Default for AuthenticationOptions {
        AuthenticationOptions { 
          kind: AuthenticationKind::NONE,
          username: None,
-         password: None
+         password: None,
+         database: None
       }
    }
 }

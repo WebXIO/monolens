@@ -28,4 +28,5 @@ tracing = "0.1.44"
 uuid = "1.20.0"
 tokio = { version = "1.49.0", features = ["fs"] }
 async-trait = "0.1"
+thiserror = "2.0.18"
 
