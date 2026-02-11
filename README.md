@@ -9,5 +9,5 @@ pnpm install
 ```
 
 ```bash
-pnpm tauri
+pnpm tauri dev
 ```
