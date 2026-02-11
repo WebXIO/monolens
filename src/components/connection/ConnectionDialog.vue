@@ -30,6 +30,7 @@ import {
   ConnectorKind,
   type Connection 
 } from '@/domains/connections';
+import { useLogger } from '@/composables/useLogger';
 
 const props = defineProps<{
   open: boolean;
@@ -42,6 +43,8 @@ const emit = defineEmits<{
   'saved': [connection: Connection];
 }>();
 
+
+const logger = useLogger("ConnectionDialog");
 const store = useConnectionStore();
 
 const testStages = computed(() => store.testStages.value);
@@ -127,22 +130,22 @@ function buildConnectionFromForm(values: typeof form.values): Omit<Connection, '
 }
 
 async function handleTest() {
-  console.log('[ConnectionDialog] handleTest called');
-  console.log('[ConnectionDialog] form values:', JSON.stringify(form.values, null, 2));
+  logger.debug('handleTest called');
+  logger.trace('form values:', JSON.stringify(form.values, null, 2));
   const valid = await form.validate();
-  console.log('[ConnectionDialog] validation result:', valid);
-  console.log('[ConnectionDialog] validation errors:', form.errors.value);
+  logger.trace('validation result:', valid);
+  logger.trace('validation errors:', form.errors.value);
   if (!valid.valid) {
-    console.log('[ConnectionDialog] validation failed, returning early');
+    logger.warn('validation failed, returning early');
     return;
   }
 
   testPassed.value = false;
   const connection = buildConnectionFromForm(form.values);
-  console.log('[ConnectionDialog] testing connection:', JSON.stringify(connection, null, 2));
+  logger.trace('testing connection:', JSON.stringify(connection, null, 2));
   
   const stages = await store.testConnection(connection);
-  console.log('[ConnectionDialog] test stages:', stages);
+  logger.trace('test stages:', stages);
   
   testPassed.value = stages.length > 0 && stages.every(s => s.status === true);
 }

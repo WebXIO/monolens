@@ -5,7 +5,9 @@ import Button from '@/components/ui/button/Button.vue';
 import ConnectionDialog from './ConnectionDialog.vue';
 import { useConnectionStore } from '@/stores/connectionStore';
 import type { Connection } from '@/domains/connections';
+import { useLogger } from '@/composables/useLogger';
 
+const logger = useLogger("ConnectionGrid");
 const store = useConnectionStore();
 
 const connections = computed(() => store.connections.value);
@@ -24,11 +26,11 @@ onMounted(() => {
 });
 
 function openCreateDialog() {
-  console.log('[ConnectionGrid] openCreateDialog called');
+  logger.debug('openCreateDialog called');
   dialogMode.value = 'create';
   editingConnection.value = undefined;
   dialogOpen.value = true;
-  console.log('[ConnectionGrid] dialogOpen set to:', dialogOpen.value);
+  logger.debug('dialogOpen set to:', dialogOpen.value);
 }
 
 function openEditDialog(connection: Connection) {

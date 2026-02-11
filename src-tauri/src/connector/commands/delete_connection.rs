@@ -4,10 +4,7 @@ use crate::connector::commands::error::CommandError;
 use crate::AppState;
 
 #[tauri::command]
-pub async fn delete_connection(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), CommandError> {
+pub async fn delete_connection(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
     state
         .connection_repository
         .delete(&id)

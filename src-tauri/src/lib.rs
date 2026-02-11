@@ -1,11 +1,16 @@
 use tauri::Manager;
 
-use crate::{connection_handler::connection_handler::ConnectionHandler, connector::repositories::{connector_repository::ConnectorRepository, file_repository::FileRepository}};
+use crate::{
+    connection_handler::connection_handler::ConnectionHandler,
+    connector::repositories::{
+        connector_repository::ConnectorRepository, file_repository::FileRepository,
+    },
+};
 
-pub mod connector;
-pub mod drivers;
 pub mod connection_handler;
+pub mod connector;
 pub mod database;
+pub mod drivers;
 
 pub struct AppState {
     pub connection_repository: Box<dyn ConnectorRepository>,
@@ -20,15 +25,20 @@ pub fn create_app_state(repository: impl ConnectorRepository + 'static) -> AppSt
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(tauri_plugin_log::log::LevelFilter::Debug)
+                .build(),
+        )
         .setup(|app| {
             let path = app.path().app_config_dir().unwrap();
-            
+
             let repository = FileRepository::new(path);
-            
+
             let state = create_app_state(repository);
             app.manage(state);
             app.manage(ConnectionHandler::new());
-            
+
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())

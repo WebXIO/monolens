@@ -1,7 +1,10 @@
 import { ref, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import type { Connection, TestStage } from '@/domains/connections';
+import { useLogger } from '@/composables/useLogger';
 
+
+const _logger = useLogger("ConnectionStore");
 const _connections = ref<Connection[]>([]);
 const _activeConnectionId = ref<string | null>(null);
 const _isLoading = ref(false);
@@ -77,21 +80,21 @@ async function deleteConnection(id: string): Promise<boolean> {
 }
 
 async function testConnection(connection: Omit<Connection, 'id'>): Promise<TestStage[]> {
-  console.log('[connectionStore] testConnection called with:', connection);
+  _logger.debug('testConnection called with:', connection);
   _isTesting.value = true;
   _testError.value = null;
   _testStages.value = [];
   
   try {
-    console.log('[connectionStore] invoking test_connection command...');
+    _logger.trace('invoking test_connection command...');
     const stages = await invoke<TestStage[]>('test_connection', { 
       connection: { ...connection, id: '' } 
     });
-    console.log('[connectionStore] received stages:', stages);
+    _logger.trace('received stages:', stages);
     _testStages.value = stages;
     return stages;
   } catch (e) {
-    console.error('[connectionStore] test_connection error:', e);
+    _logger.error('test_connection error:', e);
     if (e instanceof Error) {
       _testError.value = e.message;
     } else if (typeof e === 'object' && e !== null) {

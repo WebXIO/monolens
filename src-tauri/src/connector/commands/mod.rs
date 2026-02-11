@@ -1,6 +1,6 @@
-pub mod error;
 pub mod create_connection;
 pub mod delete_connection;
+pub mod error;
 pub mod get_connection;
 pub mod get_connections;
 pub mod save_connections;

@@ -8,9 +8,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { invoke } from '@tauri-apps/api/core';
 import { tryCatch } from '@/utils/result';
+import { useLogger } from '@/composables/useLogger';
 
 const props = defineProps<SidebarProps>()
 
+const logger = useLogger("AppSidebar");
 const store = useConnectionStore();
 
 const databases = computed(() => store.databases.value);
@@ -42,7 +44,7 @@ async function toggleDatabase(dbName: string) {
       toggledDatabases.value.add(dbName);
    }
    else
-      console.error(error)
+      logger.error(error)
 
 }
 

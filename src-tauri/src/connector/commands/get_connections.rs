@@ -5,9 +5,7 @@ use crate::connector::models::connection::Connection;
 use crate::AppState;
 
 #[tauri::command]
-pub async fn get_connections(
-    state: State<'_, AppState>,
-) -> Result<Vec<Connection>, CommandError> {
+pub async fn get_connections(state: State<'_, AppState>) -> Result<Vec<Connection>, CommandError> {
     state
         .connection_repository
         .list()
