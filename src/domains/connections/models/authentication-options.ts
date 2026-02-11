@@ -2,7 +2,7 @@ import { AuthenticationKind } from "./authentication-kind";
 
 export type AuthenticationOptions = {
   kind: AuthenticationKind;
-  username: string;
-  password: string;
-  database: string;
+  username: string | null;
+  password: string | null;
+  database: string | null;
 };

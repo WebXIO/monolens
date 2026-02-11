@@ -1,23 +1,42 @@
 <script setup lang="ts">
+import { onMounted, computed } from 'vue';
 import Header from '@/components/Header.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
-import ConnectionForm from './components/connection/ConnectionForm.vue';
+import ConnectionGrid from '@/components/connection/ConnectionGrid.vue';
+import { useConnectionStore } from '@/stores/connectionStore';
+
+const store = useConnectionStore();
+
+const activeConnection = computed(() => store.activeConnection.value);
+
+onMounted(() => {
+  store.loadConnections();
+});
 </script>
 
 <template>
-
   <div class="[--header-height:calc(--spacing(14))]">
     <SidebarProvider class="flex flex-col">
       <Header />
-       <div class="flex flex-1">
-         <AppSidebar />
-         <SidebarInset>
-          <div class="flex flex-1 flex-col gap-4 p-4">
-            <ConnectionForm />
+      <div class="flex flex-1">
+        <template v-if="!activeConnection">
+          <div class="flex-1">
+            <ConnectionGrid />
           </div>
-        </SidebarInset>
-       </div>
+        </template>
+        
+        <template v-else>
+          <AppSidebar />
+          <SidebarInset>
+            <div class="flex flex-1 flex-col gap-4 p-4">
+              <div class="text-muted-foreground">
+                Connected to {{ activeConnection.name }}
+              </div>
+            </div>
+          </SidebarInset>
+        </template>
+      </div>
     </SidebarProvider>
   </div>
 </template>

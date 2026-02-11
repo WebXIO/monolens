@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use mongodb::{bson::doc, Client};
-use crate::{connector::models::connection::Connection, drivers::{driver::{DatabaseDriver, TestStage}, errors::DriverError}};
+use crate::{connector::models::{authentication::AuthenticationKind, connection::Connection}, drivers::{driver::{DatabaseDriver, TestStage}, errors::DriverError}};
 
 
 pub struct MongoDbOfficialDriver {
@@ -13,6 +13,33 @@ impl MongoDbOfficialDriver {
    pub fn new(connection: Connection) -> Self {
       MongoDbOfficialDriver { client: None, connection }
    }
+
+   fn build_connection_string(&self) -> String {
+      let conn = &self.connection;
+      
+      // If the URI already looks like a full MongoDB connection string, use it directly
+      if conn.uri.starts_with("mongodb://") || conn.uri.starts_with("mongodb+srv://") {
+         return conn.uri.clone();
+      }
+      
+      // Build connection string from parts
+      let auth_part = match &conn.authentication.kind {
+         AuthenticationKind::BASIC => {
+            let username = conn.authentication.username.as_deref().unwrap_or("");
+            let password = conn.authentication.password.as_deref().unwrap_or("");
+            if !username.is_empty() {
+               format!("{}:{}@", username, password)
+            } else {
+               String::new()
+            }
+         },
+         AuthenticationKind::NONE => String::new(),
+      };
+      
+      let auth_db = conn.authentication.database.as_deref().unwrap_or("admin");
+      
+      format!("mongodb://{}{}:{}/?authSource={}", auth_part, conn.uri, conn.port, auth_db)
+   }
 }
 
 #[async_trait]
@@ -20,8 +47,9 @@ impl DatabaseDriver for MongoDbOfficialDriver {
 
    async fn connect(&mut self) -> Result<(), DriverError> {
       if self.client.is_none() {
+         let connection_string = self.build_connection_string();
          self.client = Some(
-            Client::with_uri_str(self.connection.uri.to_string())
+            Client::with_uri_str(&connection_string)
                .await
                .map_err(|e| DriverError::ConnectionFailed(e.to_string()))?
          );
@@ -90,5 +118,14 @@ impl DatabaseDriver for MongoDbOfficialDriver {
       stages[4].status = Some(true);
 
       Ok(stages)
+   }
+
+   async fn list_databases(&self) -> Result<Vec<String>, DriverError> {
+      let client = self.client.as_ref().ok_or(DriverError::ClientNotInitialized)?;
+      
+      client
+         .list_database_names()
+         .await
+         .map_err(|e| DriverError::ListDatabasesFailed(e.to_string()))
    }
 }

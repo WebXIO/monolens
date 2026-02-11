@@ -33,7 +33,14 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            database::commands::test_connection::test_connection
+            database::commands::test_connection::test_connection,
+            database::commands::get_databases::get_databases,
+            connector::commands::get_connections::get_connections,
+            connector::commands::get_connection::get_connection,
+            connector::commands::create_connection::create_connection,
+            connector::commands::update_connection::update_connection,
+            connector::commands::delete_connection::delete_connection,
+            connector::commands::save_connections::save_connections,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

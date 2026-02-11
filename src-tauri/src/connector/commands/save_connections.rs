@@ -1,25 +1,20 @@
-use std::fs;
-use tauri::{AppHandle, Manager};
+use tauri::State;
 
 use crate::connector::commands::error::CommandError;
 use crate::connector::models::connection::Connection;
-
-const CONNECTIONS_FILE: &str = "connections.json";
+use crate::AppState;
 
 #[tauri::command]
-pub fn save_connections(app: AppHandle, connections: Vec<Connection>) -> Result<(), CommandError> {
-    let app_config_dir = app.path().app_config_dir()?;
-
-    // Create directory if it doesn't exist
-    if !app_config_dir.exists() {
-        fs::create_dir_all(&app_config_dir)?;
+pub async fn save_connections(
+    state: State<'_, AppState>,
+    connections: Vec<Connection>,
+) -> Result<(), CommandError> {
+    for connection in connections {
+        state
+            .connection_repository
+            .save(connection)
+            .await
+            .map_err(|e| CommandError::new(e.to_string(), "repository"))?;
     }
-
-    let connections_path = app_config_dir.join(CONNECTIONS_FILE);
-
-    // Serialize and write connections
-    let content = serde_json::to_string_pretty(&connections)?;
-    fs::write(&connections_path, content)?;
-
     Ok(())
 }

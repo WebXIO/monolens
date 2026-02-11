@@ -9,10 +9,9 @@ import {
    FormLabel,
    FormMessage,
 } from '@/components/ui/form'
-import { AuthenticationKind, Connection, ConnectionType, ConnectorKind } from "@/domains/connections";
+import { AuthenticationKind, ConnectionType, ConnectorKind } from "@/domains/connections";
 import { useForm } from "vee-validate";
 import Input from "../ui/input/Input.vue";
-import {NumberField, NumberFieldContent, NumberFieldInput} from "@/components/ui/number-field";
 import Button from "../ui/button/Button.vue";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -47,7 +46,7 @@ const onSubmit = form.handleSubmit(async (values) => {
          <FormItem>
             <FormLabel>Name</FormLabel>
             <FormControl>
-               <Input type="text" placeholder="Your Database" v-bind="componentField" />
+               <Input type="text" placeholder="Name of the connection" v-bind="componentField" />
             </FormControl>
             <FormMessage />
          </FormItem>
@@ -56,7 +55,7 @@ const onSubmit = form.handleSubmit(async (values) => {
          <FormItem>
             <FormLabel>Uri</FormLabel>
             <FormControl>
-               <Input type="text" placeholder="Your Database" v-bind="componentField" />
+               <Input type="text" placeholder="Database-Uri" v-bind="componentField" />
             </FormControl>
             <FormMessage />
          </FormItem>
@@ -83,7 +82,7 @@ const onSubmit = form.handleSubmit(async (values) => {
          <FormItem>
             <FormLabel>Password</FormLabel>
             <FormControl>
-               <Input type="password" placeholder="Username" v-bind="componentField" />
+               <Input type="password" placeholder="Password" v-bind="componentField" />
             </FormControl>
             <FormMessage />
          </FormItem>
@@ -92,7 +91,7 @@ const onSubmit = form.handleSubmit(async (values) => {
          <FormItem>
             <FormLabel>Database</FormLabel>
             <FormControl>
-               <Input type="text" placeholder="admin" v-bind="componentField" />
+               <Input type="text" placeholder="Database-Name" v-bind="componentField" />
             </FormControl>
             <FormMessage />
          </FormItem>

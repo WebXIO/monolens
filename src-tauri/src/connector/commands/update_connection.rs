@@ -5,12 +5,14 @@ use crate::connector::models::connection::Connection;
 use crate::AppState;
 
 #[tauri::command]
-pub async fn get_connections(
+pub async fn update_connection(
     state: State<'_, AppState>,
-) -> Result<Vec<Connection>, CommandError> {
+    id: String,
+    connection: Connection,
+) -> Result<(), CommandError> {
     state
         .connection_repository
-        .list()
+        .update(&id, &connection)
         .await
         .map_err(|e| CommandError::new(e.to_string(), "repository"))
 }

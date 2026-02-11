@@ -1,24 +1,25 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { SidebarProps, SidebarContent, SidebarGroup, Sidebar } from './ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from "@/components/ui/button"
-import { ChevronDown, Database, RefreshCcw } from 'lucide-vue-next';
-import { invoke } from '@tauri-apps/api/core';
-import { ref } from 'vue';
-import {ScrollArea} from '@/components/ui/scroll-area';
+import { ChevronDown, Database, RefreshCcw, Loader2 } from 'lucide-vue-next';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useConnectionStore } from '@/stores/connectionStore';
 
 const props = defineProps<SidebarProps>()
 
-const databases = ref<any[]>([]);
+const store = useConnectionStore();
 
-const getDatabases = async () => {
-   console.log('Invoke command')
-   databases.value = await invoke('get_databases')
+const databases = computed(() => store.databases.value);
+const isDatabasesLoading = computed(() => store.isDatabasesLoading.value);
+const activeConnection = computed(() => store.activeConnection.value);
 
-   console.log(databases.value)
+async function refreshDatabases() {
+   if (activeConnection.value) {
+      await store.connectTo(activeConnection.value);
+   }
 }
-
-getDatabases()
 </script>
 
 <template>
@@ -32,26 +33,42 @@ getDatabases()
                <TooltipProvider>
                   <Tooltip>
                      <TooltipTrigger as-child>
-                        <Button variant="ghost" size="icon" class="h-6 w-6">
-                           <RefreshCcw class="h-3.5 w-3.5"></RefreshCcw>
+                        <Button 
+                           variant="ghost" 
+                           size="icon" 
+                           class="h-6 w-6"
+                           :disabled="isDatabasesLoading"
+                           @click="refreshDatabases"
+                        >
+                           <Loader2 v-if="isDatabasesLoading" class="h-3.5 w-3.5 animate-spin" />
+                           <RefreshCcw v-else class="h-3.5 w-3.5" />
                         </Button>
                      </TooltipTrigger>
-                      <TooltipContent side="bottom" class="text-xs">
-                  Refresh
-                </TooltipContent>
+                     <TooltipContent side="bottom" class="text-xs">
+                        Refresh
+                     </TooltipContent>
                   </Tooltip>
                </TooltipProvider>
             </div>
          </SidebarGroup>
          <SidebarGroup>
             <ScrollArea class="flex-1">
-               <div v-for="(database, idx) in databases" :key="idx">
+               <div v-if="isDatabasesLoading" class="flex items-center gap-2 px-2 py-4 text-sm text-muted-foreground">
+                  <Loader2 class="h-4 w-4 animate-spin" />
+                  <span>Loading databases...</span>
+               </div>
+               
+               <div v-else-if="databases.length === 0" class="px-2 py-4 text-sm text-muted-foreground">
+                  No databases found
+               </div>
+               
+               <div v-else v-for="database in databases" :key="database">
                   <div class="group flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary">
                      <Button variant="ghost" size="icon" class="h-4 w-4 hover:bg-transparent">
-                        <ChevronDown></ChevronDown>
+                        <ChevronDown />
                      </Button>
-                     <Database></Database>
-                     <span>{{ database.name }}</span>
+                     <Database class="h-4 w-4" />
+                     <span>{{ database }}</span>
                   </div>
                </div>
             </ScrollArea>

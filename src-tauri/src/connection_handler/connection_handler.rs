@@ -1,4 +1,5 @@
-use std::{collections::HashMap, sync::{Arc, Mutex}};
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::Mutex;
 use crate::{connector::models::connection::Connection, drivers::{driver::DatabaseDriver, factory::DatabaseDriverFactory}};
 
 
@@ -13,7 +14,7 @@ impl ConnectionHandler {
 
 
    pub async fn get_or_connect(&self, connection: Connection) -> Result<Arc<Mutex<Box<dyn DatabaseDriver>>>, &'static str> {
-      let mut pool = self.connection_pool.lock().unwrap();
+      let mut pool = self.connection_pool.lock().await;
 
       if let Some(driver) = pool.get(&connection.id) {
          return Ok(Arc::clone(driver));
@@ -30,11 +31,11 @@ impl ConnectionHandler {
       return Ok(shared_driver)
    }
 
-   pub async  fn disconnect(&self, connection_id: &str) -> Result<(), &str> {
-      let mut pool = self.connection_pool.lock().unwrap();
+   pub async fn disconnect(&self, connection_id: &str) -> Result<(), &str> {
+      let mut pool = self.connection_pool.lock().await;
 
       if let Some(lock) = pool.remove(connection_id) {
-         let mut driver = lock.lock().unwrap();
+         let mut driver = lock.lock().await;
          driver.disconnect().await.map_err(|e| format!("Failed to disconnect: {}", e)).unwrap();
       }
 
