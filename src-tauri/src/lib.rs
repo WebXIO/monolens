@@ -35,6 +35,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             database::commands::test_connection::test_connection,
             database::commands::get_databases::get_databases,
+            database::commands::list_collections::list_collections,
             connector::commands::get_connections::get_connections,
             connector::commands::get_connection::get_connection,
             connector::commands::create_connection::create_connection,

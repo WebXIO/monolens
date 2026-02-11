@@ -5,6 +5,7 @@ import AppSidebar from '@/components/AppSidebar.vue';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import ConnectionGrid from '@/components/connection/ConnectionGrid.vue';
 import { useConnectionStore } from '@/stores/connectionStore';
+import TabsContainer from './components/tabs/TabsContainer.vue';
 
 const store = useConnectionStore();
 
@@ -29,11 +30,7 @@ onMounted(() => {
         <template v-else>
           <AppSidebar />
           <SidebarInset>
-            <div class="flex flex-1 flex-col gap-4 p-4">
-              <div class="text-muted-foreground">
-                Connected to {{ activeConnection.name }}
-              </div>
-            </div>
+            <TabsContainer />
           </SidebarInset>
         </template>
       </div>

@@ -15,6 +15,9 @@ pub enum DriverError {
     #[error("Failed to list databases: {0}")]
     ListDatabasesFailed(String),
 
+    #[error("Failed to list collections for database {0}: {1}")]
+    ListCollectionsFailed(String, String),
+
     #[error("Failed to get server status: {0}")]
     ServerStatusFailed(String),
 

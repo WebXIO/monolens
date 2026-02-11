@@ -128,4 +128,12 @@ impl DatabaseDriver for MongoDbOfficialDriver {
          .await
          .map_err(|e| DriverError::ListDatabasesFailed(e.to_string()))
    }
+
+   async fn list_collections(&self, database_name: &str) -> Result<Vec<String>, DriverError> {
+      let client = self.client.as_ref().ok_or(DriverError::ClientNotInitialized)?;
+
+      let database = client.database(&database_name);
+
+      database.list_collection_names().await.map_err(|e| DriverError::ListCollectionsFailed(database_name.to_string(), e.to_string()))
+   }
 }
