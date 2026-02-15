@@ -31,4 +31,5 @@ thiserror = "2.0.18"
 log = "0.4.29"
 tauri-plugin-log = "2"
 tauri-plugin-stronghold = "2"
+url = "2.5.8"
 

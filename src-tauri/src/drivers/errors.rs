@@ -21,6 +21,9 @@ pub enum DriverError {
     #[error("Failed to get server status: {0}")]
     ServerStatusFailed(String),
 
+    #[error("URI malformed: {0}")]
+    UriMalformed(String),
+
     #[error("Unknown driver type")]
     UnknownDriver,
 }

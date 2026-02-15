@@ -1,10 +1,12 @@
 use std::error::Error;
+use std::ops::Deref;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
 use tokio::fs;
 
 use crate::connector::models::connection::Connection;
+use crate::connector::models::create_connection::CreateConnection;
 use crate::connector::repositories::connector_repository::ConnectorRepository;
 
 pub struct FileRepository {
@@ -63,11 +65,11 @@ impl ConnectorRepository for FileRepository {
 
     async fn save(
         &self,
-        connection: Connection,
+        connection: CreateConnection,
     ) -> Result<Connection, Box<dyn Error + Send + Sync>> {
         let mut list = self.list().await?;
 
-        let new_connection = Connection::new(connection);
+        let new_connection = Connection::from(connection);
 
         list.push(new_connection);
 

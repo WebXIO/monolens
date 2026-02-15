@@ -58,7 +58,6 @@ pub fn run() {
             connector::commands::create_connection::create_connection,
             connector::commands::update_connection::update_connection,
             connector::commands::delete_connection::delete_connection,
-            connector::commands::save_connections::save_connections,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

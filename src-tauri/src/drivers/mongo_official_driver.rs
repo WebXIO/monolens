@@ -21,34 +21,40 @@ impl MongoDbOfficialDriver {
         }
     }
 
-    fn build_connection_string(&self) -> String {
+    fn build_connection_string(&self) -> Result<String, DriverError> {
         let conn = &self.connection;
-
-        // If the URI already looks like a full MongoDB connection string, use it directly
-        if conn.uri.starts_with("mongodb://") || conn.uri.starts_with("mongodb+srv://") {
-            return conn.uri.clone();
-        }
-
-        // Build connection string from parts
-        let auth_part = match &conn.authentication.kind {
-            AuthenticationKind::BASIC => {
-                let username = conn.authentication.username.as_deref().unwrap_or("");
-                let password = conn.authentication.password.as_deref().unwrap_or("");
-                if !username.is_empty() {
-                    format!("{}:{}@", username, password)
-                } else {
-                    String::new()
-                }
+        let mut uri = match url::Url::parse(format!("mongodb://{}", &conn.uri).as_str()) {
+            Ok(res) => res,
+            Err(err) => {
+                log::warn!("Uri malformed: {}", err);
+                return Err(DriverError::UriMalformed(err.to_string()))
             }
-            AuthenticationKind::NONE => String::new(),
+        };
+
+        uri.set_port(Some(conn.port)).map_err(|_| DriverError::UriMalformed(format!("Could not set port to {}", conn.port)))?;
+
+        let mut query: Vec<String> = Vec::new();
+        
+        match &conn.authentication.kind {
+            AuthenticationKind::BASIC => {
+
+                uri.set_username(conn.authentication.username.as_deref().unwrap_or("root")).map_err(|_| DriverError::UriMalformed(String::from("Could not set username")))?;
+                uri.set_password(conn.authentication.password.as_deref()).map_err(|_| DriverError::UriMalformed(String::from("Could not set password")))?;
+            },
+            AuthenticationKind::NONE => {}
         };
 
         let auth_db = conn.authentication.database.as_deref().unwrap_or("admin");
 
-        format!(
-            "mongodb://{}{}:{}/?authSource={}",
-            auth_part, conn.uri, conn.port, auth_db
-        )
+        if !auth_db.is_empty() {
+            query.push(format!("authSource={}", auth_db));
+        }
+
+        uri.set_query(Some(query.join("&").as_str()));
+
+        log::debug!("Builded connection query: {}", uri.as_str());
+
+        Ok(uri.to_string())
     }
 }
 
@@ -56,7 +62,7 @@ impl MongoDbOfficialDriver {
 impl DatabaseDriver for MongoDbOfficialDriver {
     async fn connect(&mut self) -> Result<(), DriverError> {
         if self.client.is_none() {
-            let connection_string = self.build_connection_string();
+            let connection_string = self.build_connection_string()?;
             self.client = Some(
                 Client::with_uri_str(&connection_string)
                     .await
