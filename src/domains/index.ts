@@ -1,4 +1,4 @@
-import { App, inject } from "vue";
+import { App } from "vue";
 import { ConnectionRepository, ConnectionServiceIPC } from "./connections";
 import { ConnectionRepositoryIPC } from "./connections/repositories/ConnectionRepositoryIPC";
 
