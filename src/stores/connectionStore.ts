@@ -2,13 +2,12 @@ import { ref, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import type { Connection, TestStage } from '@/domains/connections';
 import { useLogger } from '@/composables/useLogger';
-import { ConnectionServiceIPC } from '@/domains/connections';
 import { defineStore } from 'pinia';
-
-const connectionService = new ConnectionServiceIPC();
+import { useConnectionService } from '@/composables/useConnectionService';
 
 export const useConnectionStore = defineStore('connection', () => {
   const logger = useLogger("ConnectionStore");
+  const connectionService = useConnectionService();
 
   const connections = ref<Connection[]>([]);
   const activeConnectionId = ref<string | null>(null);
