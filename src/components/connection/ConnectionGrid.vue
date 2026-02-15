@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { Database, Plus, Pencil, Trash2, Loader2 } from 'lucide-vue-next';
 import Button from '@/components/ui/button/Button.vue';
 import ConnectionDialog from './ConnectionDialog.vue';
@@ -9,11 +9,6 @@ import { useLogger } from '@/composables/useLogger';
 
 const logger = useLogger("ConnectionGrid");
 const store = useConnectionStore();
-
-const connections = computed(() => store.connections.value);
-const isLoading = computed(() => store.isLoading.value);
-const hasConnections = computed(() => store.hasConnections.value);
-const storeError = computed(() => store.error.value);
 
 const dialogOpen = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
@@ -61,18 +56,18 @@ function handleSaved(_connection: Connection) {
       <Database class="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
       <h1 class="text-2xl font-semibold mb-2">MongoDB Connections</h1>
       <p class="text-muted-foreground">
-        {{ hasConnections ? 'Select a connection to get started' : 'Create your first connection' }}
+        {{ store.hasConnections ? 'Select a connection to get started' : 'Create your first connection' }}
       </p>
     </div>
     
-    <div v-if="isLoading" class="flex items-center gap-2 text-muted-foreground">
+    <div v-if="store.isLoading" class="flex items-center gap-2 text-muted-foreground">
       <Loader2 class="w-5 h-5 animate-spin" />
       <span>Loading connections...</span>
     </div>
     
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-4xl">
       <div
-        v-for="connection in connections"
+        v-for="connection in store.connections"
         :key="connection.id"
         class="group relative p-4 border rounded-lg bg-card hover:border-primary/50 transition-colors"
       >
@@ -96,7 +91,7 @@ function handleSaved(_connection: Connection) {
             <Button 
               variant="ghost" 
               size="icon"
-              class="h-8 w-8 text-destructive hover:text-destructive"
+              class="h-8 w-8 hover:bg-red-600 hover:text-white"
               @click.stop="handleDelete(connection)"
             >
               <Trash2 class="w-4 h-4" />
@@ -124,10 +119,10 @@ function handleSaved(_connection: Connection) {
     </div>
     
     <div 
-      v-if="storeError" 
+      v-if="store.error" 
       class="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg max-w-md"
     >
-      <p class="text-sm text-destructive">{{ storeError }}</p>
+      <p class="text-sm text-destructive">{{ store.error }}</p>
     </div>
     
     <ConnectionDialog

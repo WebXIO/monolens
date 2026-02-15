@@ -2,163 +2,150 @@ import { ref, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import type { Connection, TestStage } from '@/domains/connections';
 import { useLogger } from '@/composables/useLogger';
+import { ConnectionServiceIPC } from '@/domains/connections';
+import { defineStore } from 'pinia';
 
+const connectionService = new ConnectionServiceIPC();
 
-const _logger = useLogger("ConnectionStore");
-const _connections = ref<Connection[]>([]);
-const _activeConnectionId = ref<string | null>(null);
-const _isLoading = ref(false);
-const _error = ref<string | null>(null);
+export const useConnectionStore = defineStore('connection', () => {
+  const logger = useLogger("ConnectionStore");
 
-const _testStages = ref<TestStage[]>([]);
-const _isTesting = ref(false);
-const _testError = ref<string | null>(null);
+  const connections = ref<Connection[]>([]);
+  const activeConnectionId = ref<string | null>(null);
+  const activeConnection = computed(() => connections.value.find(c => c.id === activeConnectionId.value) || null);
+  const hasConnections = computed(() => connections.value.length > 0);
+  const databases = ref<string[]>([]);
+  const isTesting = ref(false);
+  const testStages = ref<TestStage[]>([]);
+  const testError = ref<string | null>(null);
 
-const _databases = ref<string[]>([]);
-const _isDatabasesLoading = ref(false);
+  const isLoading = ref(false);
+  const error = ref<string | null>(null);
+  const isDatabasesLoading = ref(false);
 
-const _activeConnection = computed(() => 
-  _connections.value.find(c => c.id === _activeConnectionId.value) || null
-);
+  async function loadConnections() {
+    isLoading.value = true;
+    error.value = null;
 
-const _hasConnections = computed(() => _connections.value.length > 0);
-
-async function loadConnections() {
-  _isLoading.value = true;
-  _error.value = null;
-  
-  try {
-    const result = await invoke<Connection[]>('get_connections');
-    _connections.value = result;
-  } catch (e) {
-    _error.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    _isLoading.value = false;
-  }
-}
-
-async function createConnection(connection: Omit<Connection, 'id'>): Promise<Connection | null> {
-  try {
-    const created = await invoke<Connection>('create_connection', { 
-      connection: { ...connection, id: '' } 
-    });
-    _connections.value.push(created);
-    return created;
-  } catch (e) {
-    _error.value = e instanceof Error ? e.message : String(e);
-    return null;
-  }
-}
-
-async function updateConnection(id: string, connection: Connection): Promise<boolean> {
-  try {
-    await invoke('update_connection', { id, connection });
-    const index = _connections.value.findIndex(c => c.id === id);
-    if (index !== -1) {
-      _connections.value[index] = connection;
-    }
-    return true;
-  } catch (e) {
-    _error.value = e instanceof Error ? e.message : String(e);
-    return false;
-  }
-}
-
-async function deleteConnection(id: string): Promise<boolean> {
-  try {
-    await invoke('delete_connection', { id });
-    _connections.value = _connections.value.filter(c => c.id !== id);
-    if (_activeConnectionId.value === id) {
-      _activeConnectionId.value = null;
-      _databases.value = [];
-    }
-    return true;
-  } catch (e) {
-    _error.value = e instanceof Error ? e.message : String(e);
-    return false;
-  }
-}
-
-async function testConnection(connection: Omit<Connection, 'id'>): Promise<TestStage[]> {
-  _logger.debug('testConnection called with:', connection);
-  _isTesting.value = true;
-  _testError.value = null;
-  _testStages.value = [];
-  
-  try {
-    _logger.trace('invoking test_connection command...');
-    const stages = await invoke<TestStage[]>('test_connection', { 
-      connection: { ...connection, id: '' } 
-    });
-    _logger.trace('received stages:', stages);
-    _testStages.value = stages;
-    return stages;
-  } catch (e) {
-    _logger.error('test_connection error:', e);
-    if (e instanceof Error) {
-      _testError.value = e.message;
-    } else if (typeof e === 'object' && e !== null) {
-      const values = Object.values(e as Record<string, unknown>);
-      _testError.value = values.length > 0 ? String(values[0]) : JSON.stringify(e);
+    const result = await connectionService.listConnections();
+    if (result.data) {
+      connections.value = result.data;
     } else {
-      _testError.value = String(e);
+      error.value = result.error instanceof Error ? result.error.message : String(result.error);
     }
-    return [];
-  } finally {
-    _isTesting.value = false;
+    isLoading.value = false;
   }
-}
 
-async function connectTo(connection: Connection): Promise<boolean> {
-  _isDatabasesLoading.value = true;
-  
-  try {
-    const dbs = await invoke<string[]>('get_databases', { connection });
-    _databases.value = dbs;
-    _activeConnectionId.value = connection.id;
-    return true;
-  } catch (e) {
-    _error.value = e instanceof Error ? e.message : String(e);
-    return false;
-  } finally {
-    _isDatabasesLoading.value = false;
+  async function createConnection(connection: Omit<Connection, 'id'>): Promise<Connection | null> {
+    const created = await connectionService.createConnection(connection);
+    if (created.data) {
+      connections.value.push(created.data);
+      return created.data;
+    } else {
+      error.value = created.error instanceof Error ? created.error.message : String(created.error);
+      return null;
+    }
   }
-}
 
-function disconnect() {
-  _activeConnectionId.value = null;
-  _databases.value = [];
-}
+  async function updateConnection(id: string, connection: Connection): Promise<boolean> {
+    await connectionService.updateConnection(id, connection);
+    const index = connections.value.findIndex(c => c.id === id);
+    if (index !== -1) {
+      connections.value[index] = connection;
+      return true;
+    } else {
+      error.value = `Connection with id ${id} not found.`;
+      return false;
+    }
+  }
 
-function clearTestState() {
-  _testStages.value = [];
-  _testError.value = null;
-  _isTesting.value = false;
-}
+  async function deleteConnection(id: string): Promise<boolean> {
+    await connectionService.deleteConnection(id);
+    connections.value = connections.value.filter(c => c.id !== id);
+    if (activeConnectionId.value === id) {
+        activeConnectionId.value = null;
+        databases.value = [];
+      return true;
+    } else {
+      error.value = `Failed to delete connection with id ${id}.`;
+      return false;
+    }
+  }
 
-export function useConnectionStore() {
+  async function connectTo(connection: Connection): Promise<boolean> {
+    isDatabasesLoading.value = true;
+    
+    try {
+      const dbs = await invoke<string[]>('get_databases', { connection });
+      databases.value = dbs;
+      activeConnectionId.value = connection.id;
+      return true;
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e);
+      return false;
+    } finally {
+      isDatabasesLoading.value = false;
+    }
+  }
+
+  async function testConnection(connection: Omit<Connection, 'id'>): Promise<TestStage[]> {
+    isTesting.value = true;
+    testError.value = null;
+    testStages.value = [];
+    
+    try {
+      const stages = await invoke<TestStage[]>('test_connection', { 
+        connection: { ...connection, id: '' } 
+      });
+      testStages.value = stages;
+      return stages;
+    } catch (e) {
+      logger.error('test_connection error:', e);
+      if (e instanceof Error) {
+        testError.value = e.message;
+      } else if (typeof e === 'object' && e !== null) {
+        const values = Object.values(e as Record<string, unknown>);
+        testError.value = values.length > 0 ? String(values[0]) : JSON.stringify(e);
+      } else {
+        testError.value = String(e);
+      }
+      return [];
+    } finally {
+      isTesting.value = false;
+    }
+  }
+
+  function disconnect() {
+    activeConnectionId.value = null;
+    databases.value = [];
+  }
+
+  function clearTestState() {
+    testStages.value = [];
+    testError.value = null;
+    isTesting.value = false;
+  }
+
   return {
-    connections: _connections,
-    activeConnectionId: _activeConnectionId,
-    activeConnection: _activeConnection,
-    isLoading: _isLoading,
-    error: _error,
-    hasConnections: _hasConnections,
-    
-    testStages: _testStages,
-    isTesting: _isTesting,
-    testError: _testError,
-    
-    databases: _databases,
-    isDatabasesLoading: _isDatabasesLoading,
-    
-    loadConnections,
     createConnection,
     updateConnection,
     deleteConnection,
-    testConnection,
+    loadConnections,
     connectTo,
     disconnect,
+    testConnection,
     clearTestState,
-  };
-}
+
+    connections,
+    activeConnection,
+    activeConnectionId,
+    isLoading,
+    error,
+    hasConnections,
+    testStages,
+    isTesting,
+    testError,
+    databases,
+    isDatabasesLoading,
+  }
+});

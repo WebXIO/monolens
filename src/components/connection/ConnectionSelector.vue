@@ -16,18 +16,14 @@ import type { Connection } from '@/domains/connections';
 
 const store = useConnectionStore();
 
-const connections = computed(() => store.connections.value);
-const activeConnectionId = computed(() => store.activeConnectionId.value);
-const activeConnection = computed(() => store.activeConnection.value);
-
 const dialogOpen = ref(false);
 
 const activeConnectionName = computed(() => 
-  activeConnection.value?.name || 'No Connection'
+  store.activeConnection?.name || 'No Connection'
 );
 
 async function handleSelectConnection(connection: Connection) {
-  if (connection.id === activeConnectionId.value) return;
+  if (connection.id === store.activeConnectionId) return;
   await store.connectTo(connection);
 }
 
@@ -55,20 +51,20 @@ function handleSaved(_connection: Connection) {
       <DropdownMenuSeparator />
       
       <DropdownMenuItem
-        v-for="connection in connections"
+        v-for="connection in store.connections"
         :key="connection.id"
         class="gap-2 cursor-pointer"
         @click="handleSelectConnection(connection)"
       >
         <Check 
-          v-if="connection.id === activeConnectionId"
+          v-if="connection.id === store.activeConnectionId"
           class="w-4 h-4" 
         />
         <div v-else class="w-4 h-4" />
         <span class="truncate">{{ connection.name }}</span>
       </DropdownMenuItem>
       
-      <DropdownMenuSeparator v-if="connections.length > 0" />
+      <DropdownMenuSeparator v-if="store.connections.length > 0" />
       
       <DropdownMenuItem class="gap-2 cursor-pointer" @click="handleAddNew">
         <Plus class="w-4 h-4" />

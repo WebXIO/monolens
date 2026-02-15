@@ -13,4 +13,8 @@ export interface ConnectionRepository {
   createConnection(
     connection: Omit<Connection, "id">,
   ): Promise<Result<Connection>>;
+  updateConnection(
+    id: string,
+    connection: Connection,
+  ): Promise<Result<void>>;
 }

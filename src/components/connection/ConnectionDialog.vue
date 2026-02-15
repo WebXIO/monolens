@@ -47,10 +47,6 @@ const emit = defineEmits<{
 const logger = useLogger("ConnectionDialog");
 const store = useConnectionStore();
 
-const testStages = computed(() => store.testStages.value);
-const isTesting = computed(() => store.isTesting.value);
-const testError = computed(() => store.testError.value);
-
 const isOpen = computed({
   get: () => props.open,
   set: (value) => emit('update:open', value),
@@ -286,12 +282,12 @@ const useAuth = computed(() => form.values.useAuth);
           </FormField>
         </div>
         
-        <div v-if="testStages.length > 0 || isTesting || testError" class="pt-4 border-t">
+        <div v-if="store.testStages.length > 0 || store.isTesting || store.testError" class="pt-4 border-t">
           <h4 class="text-sm font-medium mb-2">Connection Test</h4>
           <TestStagesDisplay 
-            :stages="testStages" 
-            :error="testError"
-            :is-loading="isTesting"
+            :stages="store.testStages" 
+            :error="store.testError"
+            :is-loading="store.isTesting"
           />
         </div>
       </form>
@@ -300,14 +296,14 @@ const useAuth = computed(() => form.values.useAuth);
         <Button 
           type="button" 
           variant="outline" 
-          :disabled="isTesting"
+          :disabled="store.isTesting"
           @click="handleTest"
         >
-          {{ isTesting ? 'Testing...' : 'Test Connection' }}
+          {{ store.isTesting ? 'Testing...' : 'Test Connection' }}
         </Button>
         <Button 
           type="button" 
-          :disabled="!testPassed || isTesting"
+          :disabled="!testPassed || store.isTesting"
           @click="handleSave"
         >
           {{ mode === 'create' ? 'Create' : 'Save' }}

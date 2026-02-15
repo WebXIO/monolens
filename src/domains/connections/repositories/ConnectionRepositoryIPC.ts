@@ -36,4 +36,10 @@ export class ConnectionRepositoryIPC implements ConnectionRepository {
   ): Promise<Result<Connection>> {
     return this.connectionService.createConnection(connection);
   }
+  updateConnection(
+    id: string,
+    connection: Connection,
+  ): Promise<Result<void>> {
+    return this.connectionService.saveConnection(id, connection);
+  }
 }

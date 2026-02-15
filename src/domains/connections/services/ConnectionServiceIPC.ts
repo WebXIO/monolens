@@ -22,4 +22,7 @@ export class ConnectionServiceIPC implements ConnectionService {
    createConnection(connection: Omit<Connection, "id">): Promise<Result<Connection>> {
       return tryCatch<Connection>(invoke('create_connection', {connection}));
    }
+   updateConnection(id: string, connection: Connection): Promise<Result<void>> {
+      return tryCatch<void>(invoke('update_connection', {id, connection}));
+   }
 }
