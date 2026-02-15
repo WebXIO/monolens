@@ -31,9 +31,16 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            let path = app.path().app_config_dir().unwrap();
+            let salt_path = app
+                .path()
+                .app_local_data_dir()
+                .expect("could not resolve app local data path")
+                .join("salt.txt");
 
+            let path = app.path().app_config_dir().unwrap();
             let repository = FileRepository::new(path);
+
+            app.handle().plugin(tauri_plugin_stronghold::Builder::with_argon2(&salt_path).build())?;
 
             let state = create_app_state(repository);
             app.manage(state);
