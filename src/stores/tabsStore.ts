@@ -39,6 +39,10 @@ export const useTabsStore = defineStore("tabs", () => {
     }
 
     tabs.value.delete(id);
+
+    if (activeTab.value === id) {
+      activeTab.value = tabs.value.size > 0 ? Array.from(tabs.value.keys())[0] : null;  // choose the first tab as active if the active tab was deleted, otherwise set it to null
+    }
   }
 
   function getActiveTab() {
