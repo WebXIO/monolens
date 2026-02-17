@@ -5,6 +5,7 @@ use crate::{
     connector::repositories::{
         connector_repository::ConnectorRepository, file_repository::FileRepository,
     },
+    connector::repositories::credentials::credential_service::CredentialService
 };
 
 pub mod connection_handler;
@@ -33,7 +34,7 @@ pub fn run() {
         .setup(|app| {
             let path = app.path().app_config_dir().unwrap();
 
-            let repository = FileRepository::new(path);
+            let repository = FileRepository::new(path, CredentialService::new("monolens-connections"));
 
             let state = create_app_state(repository);
             app.manage(state);
