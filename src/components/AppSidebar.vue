@@ -9,11 +9,15 @@ import { useConnectionStore } from '@/stores/connectionStore';
 import { invoke } from '@tauri-apps/api/core';
 import { tryCatch } from '@/utils/result';
 import { useLogger } from '@/composables/useLogger';
+import { useTabsStore } from '@/stores/tabsStore';
+import { Context } from '@/domains/context';
+import { TabKind } from '@/domains/tabs';
 
 const props = defineProps<SidebarProps>()
 
 const logger = useLogger("AppSidebar");
 const store = useConnectionStore();
+const tabsStore = useTabsStore();
 
 const toggledDatabases = ref<Set<string>>(new Set());
 const collections = ref<Record<string, string[]>>({});
@@ -44,6 +48,24 @@ async function toggleDatabase(dbName: string) {
 
 function isDatabaseExpended(name: string) {
    return toggledDatabases.value.has(name);
+}
+
+function handleCollectionSelect(database: string, collection: string) {
+   if(!store.activeConnection) return;
+
+   const context: Context = {
+      collection: collection,
+      database: database,
+      connection: store.activeConnection
+   }
+
+   let tabId = tabsStore.hasContext(context, TabKind.QUERY);
+
+   if (tabId === null) {
+      tabId = tabsStore.addTab(context, TabKind.QUERY);
+   }
+
+   tabsStore.switchTab(tabId);
 }
 
 async function refreshDatabases() {
@@ -128,7 +150,9 @@ function disconnect() {
                      <div v-for="collection in collections[database]" class="ps-8">
 
                         <div
-                        class="group flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary">
+                        class="group flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
+                        @click="handleCollectionSelect(database, collection)"
+                        >
                         <FileJson class="h-4 w-4" />
                         <span>{{ collection }}</span>
                      </div>
