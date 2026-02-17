@@ -8,6 +8,7 @@ export const useTabsStore = defineStore("tabs", () => {
   const logger = useLogger("TabsStore");
   const tabs = ref<Map<string, Tab>>(new Map());
   const activeTab = ref<string | null>(null);
+  const tabHistory = ref<string[]>([]);
 
   function addTab(context: Context, type: TabKind) {
     const id = globalThis.crypto.randomUUID();
@@ -29,6 +30,14 @@ export const useTabsStore = defineStore("tabs", () => {
       return;
     }
 
+    const idx = tabHistory.value.indexOf(id);
+
+    if (idx !== -1) {
+      tabHistory.value.splice(idx, 1);
+    }
+
+    tabHistory.value.push(id);
+
     activeTab.value = id;
   }
 
@@ -40,9 +49,23 @@ export const useTabsStore = defineStore("tabs", () => {
 
     tabs.value.delete(id);
 
-    if (activeTab.value === id) {
-      activeTab.value = tabs.value.size > 0 ? Array.from(tabs.value.keys())[0] : null;  // choose the first tab as active if the active tab was deleted, otherwise set it to null
+    const idx = tabHistory.value.indexOf(id);
+    if (idx !== -1) {
+      tabHistory.value.splice(idx, 1);
     }
+
+    if (activeTab.value === id) {
+      switchToLastTab();
+    }
+  }
+
+  function switchToLastTab() {
+    const lastTab =
+      tabHistory.value.length > 0
+        ? tabHistory.value[tabHistory.value.length - 1]
+        : null;
+
+    if (lastTab) switchTab(lastTab);
   }
 
   function getActiveTab() {
@@ -50,23 +73,24 @@ export const useTabsStore = defineStore("tabs", () => {
   }
 
   function hasContext(context: Context, type: TabKind) {
-   for(const [id, tab] of tabs.value.entries()) {
-      if(
-         tab.type === type &&
-         tab.context.collection === context.collection &&
-         tab.context.database === context.database &&
-         tab.context.connection.id === context.connection.id
-      ) return id
-   }
+    for (const [id, tab] of tabs.value.entries()) {
+      if (
+        tab.type === type &&
+        tab.context.collection === context.collection &&
+        tab.context.database === context.database &&
+        tab.context.connection.id === context.connection.id
+      )
+        return id;
+    }
 
-   return null;
+    return null;
   }
 
   function closeActiveTab() {
-   logger.debug(activeTab.value);
-   if(!activeTab.value) return;
+    logger.debug(activeTab.value);
+    if (!activeTab.value) return;
 
-   deleteTab(activeTab.value);
+    deleteTab(activeTab.value);
   }
 
   return {
@@ -76,6 +100,6 @@ export const useTabsStore = defineStore("tabs", () => {
     deleteTab,
     getActiveTab,
     hasContext,
-    closeActiveTab
+    closeActiveTab,
   };
 });

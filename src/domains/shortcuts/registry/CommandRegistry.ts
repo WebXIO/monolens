@@ -65,7 +65,7 @@ export class CommandRegistry {
     this.subscribers.set(event, subs);
   }
 
-  disabledExecution() {
+  disableExecution() {
     this.disabled = true;
   }
 
