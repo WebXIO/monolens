@@ -1,13 +1,13 @@
-import { ref, computed } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import type { Connection, TestStage } from '@/domains/connections';
 import { useLogger } from '@/composables/useLogger';
+import { useDomain } from '@/domains';
+import { Connection, ConnectionServiceIPC, TestStage } from '@/domains/connections';
+import { invoke } from '@tauri-apps/api/core';
 import { defineStore } from 'pinia';
-import { useConnectionService } from '@/composables/useConnectionService';
+import { computed, ref } from 'vue';
 
 export const useConnectionStore = defineStore('connection', () => {
   const logger = useLogger("ConnectionStore");
-  const connectionService = useConnectionService();
+  const connectionService = useDomain<ConnectionServiceIPC>(ConnectionServiceIPC);
 
   const connections = ref<Connection[]>([]);
   const activeConnectionId = ref<string | null>(null);

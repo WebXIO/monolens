@@ -1,8 +1,11 @@
-import { App } from "vue";
+import { App, inject } from "vue";
 import { ConnectionRepository, ConnectionServiceIPC } from "./connections";
 import { ConnectionRepositoryIPC } from "./connections/repositories/ConnectionRepositoryIPC";
+import { CommandRegistry } from "./shortcuts";
+import { useLogger } from "@/composables/useLogger";
 
 const prefix = "$providers";
+const logger = useLogger('Domain');
 
 function provide(create: (context: any) => any) {
   return { create };
@@ -10,6 +13,7 @@ function provide(create: (context: any) => any) {
 
 export function registerDomains(app: App) {
   const providers = [
+    provide((_context) => new CommandRegistry()),
     provide((_context) => new ConnectionServiceIPC()),
     provide(
       (context) =>
@@ -33,10 +37,20 @@ export function registerDomains(app: App) {
   for (const provider of providers) {
     const result = provider.create(app);
 
-    app.provide(Symbol(`${prefix}.${result.constructor.name}`), result);
-    app.config.globalProperties[`${prefix}.${result.constructor.name}`] = result;
+    logger.debug(`Register domain ${prefix}.${result.constructor.name}`)
+
+    app.provide(`${prefix}.${result.constructor.name}`, result);
+    app.config.globalProperties[`${prefix}.${result.constructor.name}`] =
+      result;
   }
 
-
   delete (app as any).read;
+}
+
+export function useDomain<T>(token: new (...args: any[]) => T, app?: App): T {
+  return (
+    app
+      ? app.config.globalProperties[`${prefix}.${token.name}`]
+      : inject(`${prefix}.${token.name}`)
+  ) as T;
 }

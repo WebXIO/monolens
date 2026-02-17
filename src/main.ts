@@ -5,7 +5,7 @@ import { registerDomains } from "./domains";
 
 const app = createApp(App);
 
-registerPlugins(app);
 registerDomains(app);
+registerPlugins(app);
 
 app.mount("#app");

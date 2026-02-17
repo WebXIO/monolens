@@ -62,12 +62,20 @@ export const useTabsStore = defineStore("tabs", () => {
    return null;
   }
 
+  function closeActiveTab() {
+   logger.debug(activeTab.value);
+   if(!activeTab.value) return;
+
+   deleteTab(activeTab.value);
+  }
+
   return {
     tabs,
     addTab,
     switchTab,
     deleteTab,
     getActiveTab,
-    hasContext
+    hasContext,
+    closeActiveTab
   };
 });
