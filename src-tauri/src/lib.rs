@@ -1,28 +1,58 @@
-use mongodb::results::DatabaseSpecification;
+use tauri::Manager;
 
-use crate::connector::connector::Connection;
+use crate::{
+    connection_handler::connection_handler::ConnectionHandler,
+    connector::repositories::{
+        connector_repository::ConnectorRepository, file_repository::FileRepository,
+    },
+    connector::repositories::credentials::credential_service::CredentialService
+};
 
+pub mod connection_handler;
 pub mod connector;
+pub mod database;
+pub mod drivers;
 
-
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+pub struct AppState {
+    pub connection_repository: Box<dyn ConnectorRepository>,
 }
 
-#[tauri::command]
-async fn get_databases() -> Vec<DatabaseSpecification> {
-    let connector = Connection::new("mongodb://root:rootpass@localhost:27017");
-
-    return connector.get_databases().await;
+pub fn create_app_state(repository: impl ConnectorRepository + 'static) -> AppState {
+    AppState {
+        connection_repository: Box::new(repository),
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(tauri_plugin_log::log::LevelFilter::Debug)
+                .build(),
+        )
+        .setup(|app| {
+            let path = app.path().app_config_dir().unwrap();
+
+            let repository = FileRepository::new(path, CredentialService::new("monolens-connections"));
+
+            let state = create_app_state(repository);
+            app.manage(state);
+            app.manage(ConnectionHandler::new());
+
+            Ok(())
+        })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, get_databases])
+        .invoke_handler(tauri::generate_handler![
+            database::commands::test_connection::test_connection,
+            database::commands::get_databases::get_databases,
+            database::commands::list_collections::list_collections,
+            connector::commands::get_connections::get_connections,
+            connector::commands::get_connection::get_connection,
+            connector::commands::create_connection::create_connection,
+            connector::commands::update_connection::update_connection,
+            connector::commands::delete_connection::delete_connection,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

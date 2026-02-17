@@ -1,27 +1,37 @@
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import Header from '@/components/Header.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import ConnectionGrid from '@/components/connection/ConnectionGrid.vue';
+import { useConnectionStore } from '@/stores/connectionStore';
+import TabsContainer from './components/tabs/TabsContainer.vue';
+
+const store = useConnectionStore();
+
+onMounted(() => {
+  store.loadConnections();
+});
 </script>
 
 <template>
-
   <div class="[--header-height:calc(--spacing(14))]">
     <SidebarProvider class="flex flex-col">
       <Header />
-       <div class="flex flex-1">
-         <AppSidebar />
-         <SidebarInset>
-          <div class="flex flex-1 flex-col gap-4 p-4">
-            <div class="grid auto-rows-min gap-4 md:grid-cols-3">
-              <div class="bg-muted/50 aspect-video rounded-xl" />
-              <div class="bg-muted/50 aspect-video rounded-xl" />
-              <div class="bg-muted/50 aspect-video rounded-xl" />
-            </div>
-            <div class="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
+      <div class="flex flex-1">
+        <template v-if="!store.activeConnection">
+          <div class="flex-1">
+            <ConnectionGrid />
           </div>
-        </SidebarInset>
-       </div>
+        </template>
+        
+        <template v-else>
+          <AppSidebar />
+          <SidebarInset>
+            <TabsContainer />
+          </SidebarInset>
+        </template>
+      </div>
     </SidebarProvider>
   </div>
 </template>
