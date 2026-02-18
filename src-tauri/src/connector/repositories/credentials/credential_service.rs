@@ -20,9 +20,9 @@ impl CredentialService {
         let service = self.service_name.clone();
         let id = connection_id.to_string();
         let pass = password.to_string();
+        let key = self.get_key(&id);
 
         tokio::task::spawn_blocking(move || {
-            let key = format!("connection:{}:password", id);    // namespace the key with the connection id to avoid conflicts
             let entry = Entry::new(&service, &key)?;
             entry.set_password(&pass)?;
             Ok::<_, keyring::Error>(())
@@ -38,9 +38,9 @@ impl CredentialService {
     ) -> Result<String, Box<dyn Error + Send + Sync>> {
         let service = self.service_name.clone();
         let id = connection_id.to_string();
+        let key = self.get_key(&id);
 
         let password = tokio::task::spawn_blocking(move || {
-            let key = format!("connection:{}:password", id);
             let entry = Entry::new(&service, &key)?;
             entry.get_password()
         })
@@ -55,14 +55,18 @@ impl CredentialService {
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let service = self.service_name.clone();
         let id = connection_id.to_string();
+        let key = self.get_key(&id);
 
         tokio::task::spawn_blocking(move || {
-            let key = format!("connection:{}:password", id);
             let entry = Entry::new(&service, &key)?;
             entry.delete_credential()
         })
         .await??;
 
         Ok(())
+    }
+
+    fn get_key(&self, connection_id: &str) -> String {
+        format!("connection:{}:password", connection_id)
     }
 }
