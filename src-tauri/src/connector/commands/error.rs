@@ -1,4 +1,5 @@
 use serde::Serialize;
+use thiserror::Error;
 
 #[derive(Debug, Serialize)]
 pub struct CommandError {
@@ -41,3 +42,31 @@ impl From<tauri::Error> for CommandError {
         }
     }
 }
+
+#[derive(Error, Debug)]
+pub enum RepositoryError {
+    #[error("Connection not found: {0}")]
+    NotFound(String),
+
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
+
+    #[error("Credential error: {0}")]
+    Credential(#[from] CredentialError),
+
+    #[error("Migration error from version {from} to {to}")]
+    MigrationError { from: u32, to: u32 },
+}
+
+#[derive(Debug, Error)]
+pub enum CredentialError {
+    #[error("Keyring error: {0}")]
+    Keyring(#[from] keyring::Error),
+
+    #[error("Task join error: {0}")]
+    Join(#[from] tokio::task::JoinError),
+}
+

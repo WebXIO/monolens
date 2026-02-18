@@ -1,5 +1,6 @@
 use keyring::Entry;
-use std::error::Error;
+
+use crate::connector::commands::error::CredentialError;
 
 pub struct CredentialService {
     service_name: String,
@@ -16,11 +17,10 @@ impl CredentialService {
         &self,
         connection_id: &str,
         password: &str,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), CredentialError> {
         let service = self.service_name.clone();
-        let id = connection_id.to_string();
+        let key = self.get_key(connection_id);
         let pass = password.to_string();
-        let key = self.get_key(&id);
 
         tokio::task::spawn_blocking(move || {
             let entry = Entry::new(&service, &key)?;
@@ -35,10 +35,9 @@ impl CredentialService {
     pub async fn get_password(
         &self,
         connection_id: &str,
-    ) -> Result<String, Box<dyn Error + Send + Sync>> {
+    ) -> Result<String, CredentialError> {
         let service = self.service_name.clone();
-        let id = connection_id.to_string();
-        let key = self.get_key(&id);
+        let key = self.get_key(connection_id);
 
         let password = tokio::task::spawn_blocking(move || {
             let entry = Entry::new(&service, &key)?;
@@ -52,10 +51,9 @@ impl CredentialService {
     pub async fn delete_password(
         &self,
         connection_id: &str,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), CredentialError> {
         let service = self.service_name.clone();
-        let id = connection_id.to_string();
-        let key = self.get_key(&id);
+        let key = self.get_key(connection_id);
 
         tokio::task::spawn_blocking(move || {
             let entry = Entry::new(&service, &key)?;
@@ -67,6 +65,6 @@ impl CredentialService {
     }
 
     fn get_key(&self, connection_id: &str) -> String {
-        format!("connection:{}:password", connection_id)
+        format!("connection:{}:basic_password", connection_id)
     }
 }

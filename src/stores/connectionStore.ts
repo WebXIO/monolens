@@ -72,16 +72,11 @@ export const useConnectionStore = defineStore('connection', () => {
     isDatabasesLoading.value = true;
     
     try {
-      const hydrated_connection = await hydrateConnectionWithCredentials(connection);
+      const dbs = await invoke<string[]>('get_databases', { connection });
+      databases.value = dbs;
+      activeConnectionId.value = connection.id;
 
-      if (hydrated_connection) {
-        const dbs = await invoke<string[]>('get_databases', { connection: hydrated_connection });
-        databases.value = dbs;
-        activeConnectionId.value = hydrated_connection.id;
-        return true;
-      }
-
-      return false;
+      return true;
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
       return false;
@@ -114,22 +109,6 @@ export const useConnectionStore = defineStore('connection', () => {
       return [];
     } finally {
       isTesting.value = false;
-    }
-  }
-
-  async function hydrateConnectionWithCredentials(connection: Connection): Promise<Connection | null> {
-    try {
-      const result = await connectionService.getConnection(connection.id);
-      logger.debug('Fetched connection with credentials for connection id:', connection.id);
-      if (result.data) {
-        return result.data;
-      } else {
-        error.value = result.error instanceof Error ? result.error.message : String(result.error);
-        return null;
-      }
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e);
-      return null;
     }
   }
 
