@@ -171,6 +171,13 @@ async function handleSave() {
 }
 
 const useAuth = computed(() => form.values.useAuth);
+const everythingFilled = computed(() => {
+  if (form.values.useAuth) {
+    return form.values.name && form.values.uri && form.values.port && form.values.username && form.values.password && form.values.authDatabase;
+  } else {
+    return form.values.name && form.values.uri && form.values.port;
+  }
+});
 </script>
 
 <template>
@@ -296,7 +303,7 @@ const useAuth = computed(() => form.values.useAuth);
         <Button 
           type="button" 
           variant="outline" 
-          :disabled="store.isTesting"
+          :disabled="store.isTesting || !everythingFilled"
           @click="handleTest"
         >
           {{ store.isTesting ? 'Testing...' : 'Test Connection' }}
