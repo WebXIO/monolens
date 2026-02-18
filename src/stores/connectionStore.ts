@@ -64,11 +64,8 @@ export const useConnectionStore = defineStore('connection', () => {
     if (activeConnectionId.value === id) {
         activeConnectionId.value = null;
         databases.value = [];
-      return true;
-    } else {
-      error.value = `Failed to delete connection with id ${id}.`;
-      return false;
     }
+    return true;
   }
 
   async function connectTo(connection: Connection): Promise<boolean> {
