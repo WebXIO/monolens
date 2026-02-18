@@ -56,19 +56,11 @@ impl ConnectorRepository for FileRepository {
             return Ok(Vec::new());
         }
 
-        let mut connections: Vec<Connection> =
+        let connections: Vec<Connection> =
             serde_json::from_str(&content_str).unwrap_or_else(|err| {
                 log::error!("Could not parse file content: {}", err);
                 Vec::new()
             });
-
-        for conn in &mut connections {
-            if let AuthenticationKind::BASIC = conn.authentication.kind {
-                if let Ok(password) = self.credential_service.get_password(&conn.id).await {
-                    conn.authentication.password = Some(password);
-                }
-            }
-        }
 
         Ok(connections)
     }
