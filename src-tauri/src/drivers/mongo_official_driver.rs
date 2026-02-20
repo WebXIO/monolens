@@ -52,7 +52,7 @@ impl MongoDbOfficialDriver {
 
         uri.set_query(Some(query.join("&").as_str()));
 
-        log::debug!("Builded connection query: {}", uri.as_str());
+        log::debug!("Built connection query: {}", uri.as_str());
 
         Ok(uri.to_string())
     }

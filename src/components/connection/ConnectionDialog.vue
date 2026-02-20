@@ -22,6 +22,7 @@ import {
 import Input from '@/components/ui/input/Input.vue';
 import Button from '@/components/ui/button/Button.vue';
 import TestStagesDisplay from './TestStagesDisplay.vue';
+import { Eye, EyeOff } from 'lucide-vue-next';
 
 import { useConnectionStore } from '@/stores/connectionStore';
 import { 
@@ -108,6 +109,7 @@ watch(isOpen, (open) => {
 });
 
 const testPassed = ref(false);
+const showPassword = ref(false);
 
 function buildConnectionFromForm(values: typeof form.values): Omit<Connection, 'id'> {
   return {
@@ -171,6 +173,13 @@ async function handleSave() {
 }
 
 const useAuth = computed(() => form.values.useAuth);
+const everythingFilled = computed(() => {
+  if (form.values.useAuth) {
+    return form.values.name && form.values.uri && form.values.port && form.values.username && form.values.password && form.values.authDatabase;
+  } else {
+    return form.values.name && form.values.uri && form.values.port;
+  }
+});
 </script>
 
 <template>
@@ -257,11 +266,23 @@ const useAuth = computed(() => form.values.useAuth);
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input 
-                  type="password" 
-                  placeholder="Password" 
-                  v-bind="componentField" 
-                />
+                <div class="relative">
+                  <Input 
+                    :type="showPassword ? 'text' : 'password'" 
+                    placeholder="Password" 
+                    v-bind="componentField" 
+                    class="pr-10"
+                  />
+                  <button
+                    type="button"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    tabindex="-1"
+                    @click="showPassword = !showPassword"
+                  >
+                    <EyeOff v-if="showPassword" class="h-4 w-4" />
+                    <Eye v-else class="h-4 w-4" />
+                  </button>
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -282,11 +303,16 @@ const useAuth = computed(() => form.values.useAuth);
           </FormField>
         </div>
         
+        <div v-if="store.error" class="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+          <p class="text-sm text-destructive">{{ store.error }}</p>
+        </div>
+
         <div v-if="store.testStages.length > 0 || store.isTesting || store.testError" class="pt-4 border-t">
           <h4 class="text-sm font-medium mb-2">Connection Test</h4>
           <TestStagesDisplay 
             :stages="store.testStages" 
             :error="store.testError"
+            :error-detail="store.testErrorDetail"
             :is-loading="store.isTesting"
           />
         </div>
@@ -296,7 +322,7 @@ const useAuth = computed(() => form.values.useAuth);
         <Button 
           type="button" 
           variant="outline" 
-          :disabled="store.isTesting"
+          :disabled="store.isTesting || !everythingFilled"
           @click="handleTest"
         >
           {{ store.isTesting ? 'Testing...' : 'Test Connection' }}

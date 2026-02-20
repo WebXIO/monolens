@@ -1,6 +1,6 @@
 use crate::{
     connector::models::connection::Connection,
-    drivers::{driver::DatabaseDriver, factory::DatabaseDriverFactory},
+    drivers::{driver::DatabaseDriver, errors::DriverError, factory::DatabaseDriverFactory},
 };
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
@@ -19,22 +19,16 @@ impl ConnectionHandler {
     pub async fn get_or_connect(
         &self,
         connection: Connection,
-    ) -> Result<Arc<Mutex<Box<dyn DatabaseDriver>>>, &'static str> {
+    ) -> Result<Arc<Mutex<Box<dyn DatabaseDriver>>>, DriverError> {
         let mut pool = self.connection_pool.lock().await;
 
         if let Some(driver) = pool.get(&connection.id) {
             return Ok(Arc::clone(driver));
         }
 
-        let mut driver = DatabaseDriverFactory::create(connection.clone())
-            .map_err(|e| format!("Failed to create driver {}", e))
-            .unwrap();
+        let mut driver = DatabaseDriverFactory::create(connection.clone())?;
 
-        driver
-            .connect()
-            .await
-            .map_err(|e| format!("Failed to connect: {}", e))
-            .unwrap();
+        driver.connect().await?;
 
         let shared_driver = Arc::from(Mutex::new(driver));
 
@@ -43,16 +37,12 @@ impl ConnectionHandler {
         return Ok(shared_driver);
     }
 
-    pub async fn disconnect(&self, connection_id: &str) -> Result<(), &str> {
+    pub async fn disconnect(&self, connection_id: &str) -> Result<(), DriverError> {
         let mut pool = self.connection_pool.lock().await;
 
         if let Some(lock) = pool.remove(connection_id) {
             let mut driver = lock.lock().await;
-            driver
-                .disconnect()
-                .await
-                .map_err(|e| format!("Failed to disconnect: {}", e))
-                .unwrap();
+            driver.disconnect().await?;
         }
 
         Ok(())

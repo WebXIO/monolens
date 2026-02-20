@@ -9,5 +9,5 @@ pub async fn delete_connection(state: State<'_, AppState>, id: String) -> Result
         .connection_repository
         .delete(&id)
         .await
-        .map_err(|e| CommandError::new(e.to_string(), "repository"))
+        .map_err(|e| CommandError::new(e.to_string(), "repository", "Failed to delete connection."))
 }

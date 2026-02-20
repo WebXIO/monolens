@@ -10,5 +10,5 @@ pub async fn get_connections(state: State<'_, AppState>) -> Result<Vec<Connectio
         .connection_repository
         .list()
         .await
-        .map_err(|e| CommandError::new(e.to_string(), "repository"))
+        .map_err(|e| CommandError::new(e.to_string(), "repository", "Failed to load connections."))
 }

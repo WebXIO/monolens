@@ -5,7 +5,7 @@ use crate::{
 
 #[tauri::command]
 pub async fn test_connection(connection: Connection) -> Result<Vec<TestStage>, DriverError> {
-    let mut driver = DatabaseDriverFactory::create(connection).unwrap();
+    let mut driver = DatabaseDriverFactory::create(connection)?;
 
     driver.connect().await?;
 
