@@ -14,5 +14,5 @@ pub async fn create_connection(
         .connection_repository
         .save(connection)
         .await
-        .map_err(|e| CommandError::new(e.to_string(), "repository"))
+        .map_err(|e| CommandError::new(e.to_string(), "repository", "Failed to create connection."))
 }

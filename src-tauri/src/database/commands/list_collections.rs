@@ -12,8 +12,7 @@ pub async fn list_collections(
 ) -> Result<Vec<String>, DriverError> {
     let driver_lock = connection_handler
         .get_or_connect(connection)
-        .await
-        .map_err(|e| DriverError::ConnectionFailed(e.to_string()))?;
+        .await?;
 
     let driver = driver_lock.lock().await;
     driver.list_collections(&database_name).await

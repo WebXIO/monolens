@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { Check, X, Loader2 } from 'lucide-vue-next';
+import { ref } from 'vue';
+import { Check, X, Loader2, ChevronDown, ChevronRight } from 'lucide-vue-next';
 import type { TestStage } from '@/domains/connections';
 
 defineProps<{
   stages: TestStage[];
   error?: string | null;
+  errorDetail?: string | null;
   isLoading?: boolean;
 }>();
+
+const showDetail = ref(false);
 </script>
 
 <template>
@@ -29,7 +33,20 @@ defineProps<{
     </div>
 
     <div v-if="error" class="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md w-100 break-words">
-      <p class="text-sm text-destructive whitespace-pre-wrap">{{ error }}</p>
+      <p class="text-sm text-destructive">{{ error }}</p>
+      <button
+        v-if="errorDetail && errorDetail !== error"
+        class="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        @click="showDetail = !showDetail"
+      >
+        <ChevronDown v-if="showDetail" class="w-3 h-3" />
+        <ChevronRight v-else class="w-3 h-3" />
+        {{ showDetail ? 'Hide details' : 'Show details' }}
+      </button>
+      <pre
+        v-if="showDetail && errorDetail"
+        class="mt-2 text-xs text-muted-foreground whitespace-pre-wrap font-mono bg-muted/50 rounded p-2"
+      >{{ errorDetail }}</pre>
     </div>
   </div>
 </template>

@@ -5,13 +5,19 @@ use thiserror::Error;
 pub struct CommandError {
     pub message: String,
     pub kind: String,
+    pub user_message: String,
 }
 
 impl CommandError {
-    pub fn new(message: impl Into<String>, kind: impl Into<String>) -> Self {
+    pub fn new(
+        message: impl Into<String>,
+        kind: impl Into<String>,
+        user_message: impl Into<String>,
+    ) -> Self {
         CommandError {
             message: message.into(),
             kind: kind.into(),
+            user_message: user_message.into(),
         }
     }
 }
@@ -21,6 +27,7 @@ impl From<std::io::Error> for CommandError {
         CommandError {
             message: err.to_string(),
             kind: String::from("io"),
+            user_message: String::from("Failed to read or write connection data."),
         }
     }
 }
@@ -30,6 +37,7 @@ impl From<serde_json::Error> for CommandError {
         CommandError {
             message: err.to_string(),
             kind: String::from("serialization"),
+            user_message: String::from("Connection data is corrupted."),
         }
     }
 }
@@ -39,6 +47,7 @@ impl From<tauri::Error> for CommandError {
         CommandError {
             message: err.to_string(),
             kind: String::from("tauri"),
+            user_message: String::from("An internal application error occurred."),
         }
     }
 }

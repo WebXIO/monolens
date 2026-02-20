@@ -24,8 +24,7 @@ pub async fn get_databases(
 
     let driver_lock = connection_handler
         .get_or_connect(hydrated_connection)
-        .await
-        .map_err(|e| DriverError::ConnectionFailed(e.to_string()))?;
+        .await?;
 
     let driver = driver_lock.lock().await;
     driver.list_databases().await
