@@ -104,11 +104,9 @@ watch(isOpen, (open) => {
   if (!open) {
     form.resetForm();
     store.clearTestState();
-    testPassed.value = false;
   }
 });
 
-const testPassed = ref(false);
 const showPassword = ref(false);
 
 function buildConnectionFromForm(values: typeof form.values): Omit<Connection, 'id'> {
@@ -138,14 +136,11 @@ async function handleTest() {
     return;
   }
 
-  testPassed.value = false;
   const connection = buildConnectionFromForm(form.values);
   logger.trace('testing connection:', JSON.stringify(connection, null, 2));
   
   const stages = await store.testConnection(connection);
   logger.trace('test stages:', stages);
-  
-  testPassed.value = stages.length > 0 && stages.every(s => s.status === true);
 }
 
 async function handleSave() {
@@ -329,7 +324,7 @@ const everythingFilled = computed(() => {
         </Button>
         <Button 
           type="button" 
-          :disabled="!testPassed || store.isTesting"
+          :disabled="!everythingFilled || store.isTesting"
           @click="handleSave"
         >
           {{ mode === 'create' ? 'Create' : 'Save' }}
