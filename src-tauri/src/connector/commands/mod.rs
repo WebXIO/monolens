@@ -2,11 +2,13 @@ pub mod create_connection;
 pub mod delete_connection;
 pub mod error;
 pub mod get_connection;
+pub mod get_connection_password;
 pub mod get_connections;
 pub mod update_connection;
 
 pub use create_connection::create_connection;
 pub use delete_connection::delete_connection;
 pub use get_connection::get_connection;
+pub use get_connection_password::get_connection_password;
 pub use get_connections::get_connections;
 pub use update_connection::update_connection;

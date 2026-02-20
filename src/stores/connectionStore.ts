@@ -131,6 +131,14 @@ export const useConnectionStore = defineStore('connection', () => {
     isTesting.value = false;
   }
 
+  async function getConnectionPassword(id: string): Promise<string | null> {
+    const result = await connectionService.getConnectionPassword(id);
+    if (result.data !== undefined && result.data !== null) {
+      return result.data;
+    }
+    return null;
+  }
+
   return {
     createConnection,
     updateConnection,
@@ -140,6 +148,7 @@ export const useConnectionStore = defineStore('connection', () => {
     disconnect,
     testConnection,
     clearTestState,
+    getConnectionPassword,
 
     connections,
     activeConnection,

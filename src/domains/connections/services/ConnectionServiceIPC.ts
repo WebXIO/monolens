@@ -25,4 +25,7 @@ export class ConnectionServiceIPC implements ConnectionService {
    updateConnection(id: string, connection: Connection): Promise<Result<void>> {
       return tryCatch<void>(invoke('update_connection', {id, connection}));
    }
+   getConnectionPassword(id: string): Promise<Result<string | null>> {
+      return tryCatch<string | null>(invoke('get_connection_password', {id}));
+   }
 }

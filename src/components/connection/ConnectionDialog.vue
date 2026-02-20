@@ -86,15 +86,20 @@ const form = useForm({
   },
 });
 
-watch(() => props.connection, (conn) => {
+watch(() => props.connection, async (conn) => {
   if (conn) {
+    const useAuth = conn.authentication.kind !== AuthenticationKind.NONE;
+    let password = '';
+    if (useAuth && props.mode === 'edit') {
+      password = (await store.getConnectionPassword(conn.id)) ?? '';
+    }
     form.setValues({
       name: conn.name,
       uri: conn.uri,
       port: conn.port,
-      useAuth: conn.authentication.kind !== AuthenticationKind.NONE,
+      useAuth,
       username: conn.authentication.username || '',
-      password: conn.authentication.password || '',
+      password,
       authDatabase: conn.authentication.database || 'admin',
     });
   }
@@ -104,6 +109,7 @@ watch(isOpen, (open) => {
   if (!open) {
     form.resetForm();
     store.clearTestState();
+    showPassword.value = false;
   }
 });
 

@@ -51,6 +51,7 @@ pub fn run() {
             database::commands::list_collections::list_collections,
             connector::commands::get_connections::get_connections,
             connector::commands::get_connection::get_connection,
+            connector::commands::get_connection_password::get_connection_password,
             connector::commands::create_connection::create_connection,
             connector::commands::update_connection::update_connection,
             connector::commands::delete_connection::delete_connection,

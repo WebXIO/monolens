@@ -9,4 +9,5 @@ export abstract class ConnectionService {
   abstract deleteConnection(id: string): Promise<Result<void>>;
   abstract createConnection(connection: Omit<Connection, "id">): Promise<Result<Connection>>;
   abstract updateConnection(id: string, connection: Connection): Promise<Result<void>>;
+  abstract getConnectionPassword(id: string): Promise<Result<string | null>>;
 }
