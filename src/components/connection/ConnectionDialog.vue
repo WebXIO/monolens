@@ -185,7 +185,7 @@ const everythingFilled = computed(() => {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="sm:max-w-[500px]">
+    <DialogContent class="sm:max-w-[700px]">
       <DialogHeader>
         <DialogTitle>{{ dialogTitle }}</DialogTitle>
         <DialogDescription>{{ dialogDescription }}</DialogDescription>
@@ -206,33 +206,35 @@ const everythingFilled = computed(() => {
           </FormItem>
         </FormField>
         
-        <FormField v-slot="{ componentField }" name="uri">
-          <FormItem>
-            <FormLabel>Host</FormLabel>
-            <FormControl>
-              <Input 
-                type="text" 
-                placeholder="localhost or mongodb+srv://..." 
-                v-bind="componentField" 
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        </FormField>
-        
-        <FormField v-slot="{ componentField }" name="port">
-          <FormItem>
-            <FormLabel>Port</FormLabel>
-            <FormControl>
-              <Input 
-                type="number" 
-                placeholder="27017" 
-                v-bind="componentField" 
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        </FormField>
+        <div class="grid grid-cols-3 gap-4">
+          <FormField v-slot="{ componentField }" name="uri">
+            <FormItem class="col-span-2">
+              <FormLabel>Host</FormLabel>
+              <FormControl>
+                <Input 
+                  type="text" 
+                  placeholder="localhost or mongodb+srv://..." 
+                  v-bind="componentField" 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          </FormField>
+          
+          <FormField v-slot="{ componentField }" name="port">
+            <FormItem>
+              <FormLabel>Port</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  placeholder="27017" 
+                  v-bind="componentField" 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          </FormField>
+        </div>
         
         <FormField v-slot="{ value, handleChange }" name="useAuth">
           <FormItem class="flex items-center gap-3">
@@ -248,60 +250,62 @@ const everythingFilled = computed(() => {
           </FormItem>
         </FormField>
         
-        <div v-if="useAuth" class="space-y-4 pl-4 border-l-2 border-muted">
-          <FormField v-slot="{ componentField }" name="username">
-            <FormItem>
-              <FormLabel>Username</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  placeholder="Username" 
-                  v-bind="componentField" 
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          </FormField>
-          
-          <FormField v-slot="{ componentField }" name="password">
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <div class="relative">
+        <div v-if="useAuth" class="pl-4 border-l-2 border-muted">
+          <div class="grid grid-cols-3 gap-4">
+            <FormField v-slot="{ componentField }" name="username">
+              <FormItem>
+                <FormLabel>Username</FormLabel>
+                <FormControl>
                   <Input 
-                    :type="showPassword ? 'text' : 'password'" 
-                    placeholder="Password" 
+                    type="text" 
+                    placeholder="Username" 
                     v-bind="componentField" 
-                    class="pr-10"
                   />
-                  <button
-                    type="button"
-                    class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    tabindex="-1"
-                    @click="showPassword = !showPassword"
-                  >
-                    <EyeOff v-if="showPassword" class="h-4 w-4" />
-                    <Eye v-else class="h-4 w-4" />
-                  </button>
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          </FormField>
-          
-          <FormField v-slot="{ componentField }" name="authDatabase">
-            <FormItem>
-              <FormLabel>Auth Database</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  placeholder="admin" 
-                  v-bind="componentField" 
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          </FormField>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+            
+            <FormField v-slot="{ componentField }" name="password">
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <div class="relative">
+                    <Input 
+                      :type="showPassword ? 'text' : 'password'" 
+                      placeholder="Password" 
+                      v-bind="componentField" 
+                      class="pr-10"
+                    />
+                    <button
+                      type="button"
+                      class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabindex="-1"
+                      @click="showPassword = !showPassword"
+                    >
+                      <EyeOff v-if="showPassword" class="h-4 w-4" />
+                      <Eye v-else class="h-4 w-4" />
+                    </button>
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+            
+            <FormField v-slot="{ componentField }" name="authDatabase">
+              <FormItem>
+                <FormLabel>Auth Database</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="text" 
+                    placeholder="admin" 
+                    v-bind="componentField" 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+          </div>
         </div>
         
         <div v-if="store.error" class="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
@@ -324,7 +328,7 @@ const everythingFilled = computed(() => {
           v-if="store.isTesting"
           type="button" 
           variant="outline"
-          class="border-destructive text-destructive hover:bg-destructive/10"
+          class="hover:bg-warning/10 hover:text-warning hover:border-warning/50 transition-colors"
           @click="store.cancelTest()"
         >
           Cancel Test
@@ -334,6 +338,7 @@ const everythingFilled = computed(() => {
           type="button" 
           variant="outline" 
           :disabled="!everythingFilled"
+          class="hover:bg-info/10 hover:text-info hover:border-info/50 transition-colors"
           @click="handleTest"
         >
           Test Connection
@@ -341,6 +346,7 @@ const everythingFilled = computed(() => {
         <Button 
           type="button" 
           :disabled="!everythingFilled || store.isTesting"
+          class="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-colors"
           @click="handleSave"
         >
           {{ mode === 'create' ? 'Create' : 'Save' }}

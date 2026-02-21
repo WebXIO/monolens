@@ -106,7 +106,7 @@ function handleSaved(_connection: Connection) {
         
         <Button 
           v-if="connectingId === connection.id"
-          class="w-full mt-3 border-destructive text-destructive hover:bg-destructive/10"
+          class="w-full mt-3 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50 transition-colors"
           variant="outline"
           @click.stop="handleCancelConnect"
         >
@@ -115,7 +115,7 @@ function handleSaved(_connection: Connection) {
         </Button>
         <Button 
           v-else
-          class="w-full mt-3"
+          class="w-full mt-3 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-colors"
           :disabled="connectingId !== null"
           @click="handleConnect(connection)"
         >
