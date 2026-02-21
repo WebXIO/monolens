@@ -187,10 +187,10 @@ export const useConnectionStore = defineStore('connection', () => {
 
   function _createPendingStages(): TestStage[] {
     return [
-      { title: 'Initialize Connection', status: null },
+      { title: 'Initialize', status: null },
       { title: 'Ping Database', status: null },
-      { title: 'Reading Server status', status: null },
-      { title: 'Detecting Mongodb version', status: null },
+      { title: 'Reading status', status: null },
+      { title: 'Detecting version', status: null },
       { title: 'Connected', status: null },
     ]
   }

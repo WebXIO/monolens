@@ -94,9 +94,9 @@ impl DatabaseDriver for MongoDbOfficialDriver {
 
     /// Testing Connection
     /// ## Steps
-    /// 1. Initialize Connection
+    /// 1. Initialize
     /// 2. Ping Database
-    /// 3. Reading Server stats
+    /// 3. Reading stats
     /// 4. Version detection
     /// 5. Connected
     async fn test_connection(
@@ -104,10 +104,10 @@ impl DatabaseDriver for MongoDbOfficialDriver {
         on_progress: ProgressCallback,
     ) -> Result<Vec<TestStage>, DriverError> {
         let mut stages: Vec<TestStage> = vec![
-            TestStage::new(None, String::from("Initialize Connection")),
+            TestStage::new(None, String::from("Initialize")),
             TestStage::new(None, String::from("Ping Database")),
-            TestStage::new(None, String::from("Reading Server status")),
-            TestStage::new(None, String::from("Detecting Mongodb version")),
+            TestStage::new(None, String::from("Reading status")),
+            TestStage::new(None, String::from("Detecting version")),
             TestStage::new(None, String::from("Connected")),
         ];
 
