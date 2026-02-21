@@ -9,7 +9,7 @@ pub async fn test_connection(connection: Connection) -> Result<Vec<TestStage>, D
 
     driver.connect().await?;
 
-    let result = driver.test_connection().await?;
+    let result = driver.test_connection(Box::new(|_, _| {})).await?;
 
     Ok(result)
 }

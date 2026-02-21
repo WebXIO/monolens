@@ -1,6 +1,7 @@
+import { abortableInvoke } from "@/composables/useAbortableCommand";
 import { Result, tryCatch } from "@/utils/result";
 import { invoke } from "@tauri-apps/api/core";
-import { Connection } from "../models";
+import { Connection, TestStage } from "../models";
 import { ConnectionService } from "./ConnectionService";
 
 export class ConnectionServiceIPC implements ConnectionService {
@@ -27,5 +28,19 @@ export class ConnectionServiceIPC implements ConnectionService {
    }
    getConnectionPassword(id: string): Promise<Result<string | null>> {
       return tryCatch<string | null>(invoke('get_connection_password', {id}));
+   }
+   testConnection(connection: Omit<Connection, 'id'>, options?: { signal?: AbortSignal }): Promise<TestStage[]> {
+      return abortableInvoke<TestStage[]>(
+         'start_test_connection',
+         { connection: { ...connection, id: '' } },
+         { signal: options?.signal },
+      );
+   }
+   connect(connection: Connection, options?: { signal?: AbortSignal }): Promise<string[]> {
+      return abortableInvoke<string[]>(
+         'start_connect',
+         { connection },
+         { signal: options?.signal },
+      );
    }
 }

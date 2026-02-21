@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Check, X, Loader2, ChevronDown, ChevronRight } from 'lucide-vue-next';
+import { Progress } from '@/components/ui/progress';
 import type { TestStage } from '@/domains/connections';
 
-defineProps<{
+const props = defineProps<{
   stages: TestStage[];
   error?: string | null;
   errorDetail?: string | null;
@@ -11,6 +12,12 @@ defineProps<{
 }>();
 
 const showDetail = ref(false);
+
+const progress = computed(() => {
+  if (props.stages.length === 0) return 0;
+  const completed = props.stages.filter((s) => s.status !== null).length;
+  return Math.round((completed / props.stages.length) * 100);
+});
 </script>
 
 <template>
@@ -31,6 +38,12 @@ const showDetail = ref(false);
         {{ stage.title }}
       </span>
     </div>
+
+    <Progress
+      v-if="isLoading && stages.length > 0"
+      :model-value="progress"
+      class="mt-3"
+    />
 
     <div v-if="error" class="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md w-100 break-words">
       <p class="text-sm text-destructive">{{ error }}</p>

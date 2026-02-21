@@ -321,12 +321,22 @@ const everythingFilled = computed(() => {
       
       <DialogFooter class="gap-2">
         <Button 
+          v-if="store.isTesting"
+          type="button" 
+          variant="outline"
+          class="border-destructive text-destructive hover:bg-destructive/10"
+          @click="store.cancelTest()"
+        >
+          Cancel Test
+        </Button>
+        <Button 
+          v-else
           type="button" 
           variant="outline" 
-          :disabled="store.isTesting || !everythingFilled"
+          :disabled="!everythingFilled"
           @click="handleTest"
         >
-          {{ store.isTesting ? 'Testing...' : 'Test Connection' }}
+          Test Connection
         </Button>
         <Button 
           type="button" 

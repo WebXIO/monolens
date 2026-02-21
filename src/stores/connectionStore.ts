@@ -1,10 +1,18 @@
 import { useLogger } from '@/composables/useLogger';
+import { TaskCancelledError } from '@/composables/useAbortableCommand';
 import { useDomain } from '@/domains';
 import { Connection, ConnectionServiceIPC, TestStage } from '@/domains/connections';
 import { extractErrorMessage } from '@/utils/errorMessage';
-import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
+
+// this is how the payload from Rust looks like for progress events
+interface TestProgressPayload {
+  taskId: string;
+  stageIndex: number;
+  stage: TestStage;
+}
 
 export const useConnectionStore = defineStore('connection', () => {
   const logger = useLogger("ConnectionStore");
@@ -23,6 +31,9 @@ export const useConnectionStore = defineStore('connection', () => {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
   const isDatabasesLoading = ref(false);
+
+  const testAbortController = ref<AbortController | null>(null);
+  const connectAbortController = ref<AbortController | null>(null);
 
   async function loadConnections() {
     isLoading.value = true;
@@ -80,34 +91,63 @@ export const useConnectionStore = defineStore('connection', () => {
 
   async function connectTo(connection: Connection): Promise<boolean> {
     isDatabasesLoading.value = true;
-    
+    error.value = null;
+
+    const controller = new AbortController();
+    connectAbortController.value = controller;
+
     try {
-      const dbs = await invoke<string[]>('get_databases', { connection });
+      const dbs = await connectionService.connect(connection, { signal: controller.signal });
       databases.value = dbs;
       activeConnectionId.value = connection.id;
-
       return true;
     } catch (e) {
+      if (e instanceof TaskCancelledError) {
+        logger.info('connectTo was cancelled by user');
+        error.value = null;
+        return false;
+      }
       error.value = extractErrorMessage(e);
       return false;
     } finally {
+      connectAbortController.value = null;
       isDatabasesLoading.value = false;
     }
+  }
+
+  function cancelConnect() {
+    connectAbortController.value?.abort();
   }
 
   async function testConnection(connection: Omit<Connection, 'id'>): Promise<TestStage[]> {
     isTesting.value = true;
     testError.value = null;
     testErrorDetail.value = null;
-    testStages.value = [];
-    
+    testStages.value = _createPendingStages();
+
+    const controller = new AbortController();
+    testAbortController.value = controller;
+    let unlisten: UnlistenFn | null = null;
+
     try {
-      const stages = await invoke<TestStage[]>('test_connection', { 
-        connection: { ...connection, id: '' } 
+      unlisten = await listen<TestProgressPayload>('test-connection-progress', (event) => {
+        const { stageIndex, stage } = event.payload;
+        if (stageIndex >= 0 && stageIndex < testStages.value.length) {
+          testStages.value[stageIndex] = { ...stage };
+        }
       });
+
+      const stages = await connectionService.testConnection(connection, { signal: controller.signal });
+
+      // Set final stages from the completed result
       testStages.value = stages;
       return stages;
     } catch (e) {
+      if (e instanceof TaskCancelledError) {
+        logger.info('testConnection was cancelled by user');
+        testError.value = 'Test cancelled.';
+        return [];
+      }
       logger.error('test_connection error:', e);
       testError.value = extractErrorMessage(e);
       if (typeof e === 'object' && e !== null && 'message' in e) {
@@ -115,8 +155,14 @@ export const useConnectionStore = defineStore('connection', () => {
       }
       return [];
     } finally {
+      unlisten?.();
+      testAbortController.value = null;
       isTesting.value = false;
     }
+  }
+
+  function cancelTest() {
+    testAbortController.value?.abort();
   }
 
   function disconnect() {
@@ -139,14 +185,26 @@ export const useConnectionStore = defineStore('connection', () => {
     return null;
   }
 
+  function _createPendingStages(): TestStage[] {
+    return [
+      { title: 'Initialize Connection', status: null },
+      { title: 'Ping Database', status: null },
+      { title: 'Reading Server status', status: null },
+      { title: 'Detecting Mongodb version', status: null },
+      { title: 'Connected', status: null },
+    ]
+  }
+
   return {
     createConnection,
     updateConnection,
     deleteConnection,
     loadConnections,
     connectTo,
+    cancelConnect,
     disconnect,
     testConnection,
+    cancelTest,
     clearTestState,
     getConnectionPassword,
 
