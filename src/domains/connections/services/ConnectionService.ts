@@ -1,5 +1,5 @@
 import { Result } from "@/utils/result";
-import { Connection } from "../models";
+import { Connection, TestStage } from "../models";
 
 export abstract class ConnectionService {
   abstract listConnections(): Promise<Result<Connection[]>>;
@@ -9,4 +9,7 @@ export abstract class ConnectionService {
   abstract deleteConnection(id: string): Promise<Result<void>>;
   abstract createConnection(connection: Omit<Connection, "id">): Promise<Result<Connection>>;
   abstract updateConnection(id: string, connection: Connection): Promise<Result<void>>;
+  abstract getConnectionPassword(id: string): Promise<Result<string | null>>;
+  abstract testConnection(connection: Omit<Connection, 'id'>, options?: { signal?: AbortSignal }): Promise<TestStage[]>;
+  abstract connect(connection: Connection, options?: { signal?: AbortSignal }): Promise<string[]>;
 }

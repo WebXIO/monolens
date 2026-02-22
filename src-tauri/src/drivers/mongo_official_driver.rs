@@ -1,7 +1,7 @@
 use crate::{
     connector::models::{authentication::AuthenticationKind, connection::Connection},
     drivers::{
-        driver::{DatabaseDriver, TestStage},
+        driver::{DatabaseDriver, ProgressCallback, TestStage},
         errors::DriverError,
     },
 };
@@ -27,20 +27,27 @@ impl MongoDbOfficialDriver {
             Ok(res) => res,
             Err(err) => {
                 log::warn!("Uri malformed: {}", err);
-                return Err(DriverError::UriMalformed(err.to_string()))
+                return Err(DriverError::UriMalformed(err.to_string()));
             }
         };
 
-        uri.set_port(Some(conn.port)).map_err(|_| DriverError::UriMalformed(format!("Could not set port to {}", conn.port)))?;
+        uri.set_port(Some(conn.port)).map_err(|_| {
+            DriverError::UriMalformed(format!("Could not set port to {}", conn.port))
+        })?;
 
         let mut query: Vec<String> = Vec::new();
-        
+
         match &conn.authentication.kind {
             AuthenticationKind::BASIC => {
-
-                uri.set_username(conn.authentication.username.as_deref().unwrap_or("root")).map_err(|_| DriverError::UriMalformed(String::from("Could not set username")))?;
-                uri.set_password(conn.authentication.password.as_deref()).map_err(|_| DriverError::UriMalformed(String::from("Could not set password")))?;
-            },
+                uri.set_username(conn.authentication.username.as_deref().unwrap_or("root"))
+                    .map_err(|_| {
+                        DriverError::UriMalformed(String::from("Could not set username"))
+                    })?;
+                uri.set_password(conn.authentication.password.as_deref())
+                    .map_err(|_| {
+                        DriverError::UriMalformed(String::from("Could not set password"))
+                    })?;
+            }
             AuthenticationKind::NONE => {}
         };
 
@@ -52,7 +59,13 @@ impl MongoDbOfficialDriver {
 
         uri.set_query(Some(query.join("&").as_str()));
 
-        log::debug!("Builded connection query: {}", uri.as_str());
+        if cfg!(debug_assertions) {
+            let mut log_uri = uri.clone();
+            if log_uri.password().is_some() {
+                let _ = log_uri.set_password(Some("***"));
+            }
+            log::debug!("Built connection query: {}", log_uri.as_str());
+        }
 
         Ok(uri.to_string())
     }
@@ -81,17 +94,20 @@ impl DatabaseDriver for MongoDbOfficialDriver {
 
     /// Testing Connection
     /// ## Steps
-    /// 1. Initialize Connection
+    /// 1. Initialize
     /// 2. Ping Database
-    /// 3. Reading Server stats
+    /// 3. Reading stats
     /// 4. Version detection
     /// 5. Connected
-    async fn test_connection(&self) -> Result<Vec<TestStage>, DriverError> {
+    async fn test_connection(
+        &self,
+        on_progress: ProgressCallback,
+    ) -> Result<Vec<TestStage>, DriverError> {
         let mut stages: Vec<TestStage> = vec![
-            TestStage::new(None, String::from("Initialize Connection")),
+            TestStage::new(None, String::from("Initialize")),
             TestStage::new(None, String::from("Ping Database")),
-            TestStage::new(None, String::from("Reading Server status")),
-            TestStage::new(None, String::from("Detecting Mongodb version")),
+            TestStage::new(None, String::from("Reading status")),
+            TestStage::new(None, String::from("Detecting version")),
             TestStage::new(None, String::from("Connected")),
         ];
 
@@ -101,6 +117,7 @@ impl DatabaseDriver for MongoDbOfficialDriver {
             .as_ref()
             .ok_or(DriverError::ClientNotInitialized)?;
         stages[0].status = Some(true);
+        on_progress(0, &stages[0]);
 
         let default_database_name = self
             .connection
@@ -118,6 +135,7 @@ impl DatabaseDriver for MongoDbOfficialDriver {
             .await
             .map_err(|e| DriverError::PingFailed(e.to_string()))?;
         stages[1].status = Some(true);
+        on_progress(1, &stages[1]);
 
         // Stage 2: Reading Server status
         let server_status = default_database
@@ -125,6 +143,7 @@ impl DatabaseDriver for MongoDbOfficialDriver {
             .await
             .map_err(|e| DriverError::ServerStatusFailed(e.to_string()))?;
         stages[2].status = Some(true);
+        on_progress(2, &stages[2]);
 
         // Stage 3: Detecting MongoDB version
         if server_status.get_str("version").is_ok() {
@@ -132,9 +151,11 @@ impl DatabaseDriver for MongoDbOfficialDriver {
         } else {
             stages[3].status = Some(false);
         }
+        on_progress(3, &stages[3]);
 
         // Stage 4: Connected
         stages[4].status = Some(true);
+        on_progress(4, &stages[4]);
 
         Ok(stages)
     }

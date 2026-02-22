@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { SidebarProps, SidebarContent, SidebarGroup, Sidebar } from './ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from "@/components/ui/button"
@@ -79,6 +79,33 @@ function disconnect() {
    toggledDatabases.value.clear();
    collections.value = {};
 }
+
+const activeTabContext = computed(() => tabsStore.getActiveTab()?.context ?? null);
+
+function isCollectionActive(database: string, collection: string): boolean {
+   if (!activeTabContext.value || !store.activeConnection) return false;
+   return (
+      activeTabContext.value.database === database &&
+      activeTabContext.value.collection === collection &&
+      activeTabContext.value.connection.id === store.activeConnection.id
+   );
+}
+
+watch(
+   () => tabsStore.activeTab,
+   async (newActiveTabId) => {
+      if (!newActiveTabId || !store.activeConnection) return;
+
+      const activeTab = tabsStore.getActiveTab();
+      if (!activeTab) return;
+
+      const { database } = activeTab.context;
+
+      if (!toggledDatabases.value.has(database)) {
+         await toggleDatabase(database);
+      }
+   }
+);
 </script>
 
 <template>
@@ -151,6 +178,7 @@ function disconnect() {
 
                         <div
                         class="group flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
+                        :class="{ 'bg-primary/15 text-primary font-medium': isCollectionActive(database, collection) }"
                         @click="handleCollectionSelect(database, collection)"
                         >
                         <FileJson class="h-4 w-4" />

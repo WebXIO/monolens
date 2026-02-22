@@ -1,5 +1,6 @@
 use keyring::Entry;
-use std::error::Error;
+
+use crate::connector::commands::error::CredentialError;
 
 pub struct CredentialService {
     service_name: String,
@@ -16,13 +17,12 @@ impl CredentialService {
         &self,
         connection_id: &str,
         password: &str,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), CredentialError> {
         let service = self.service_name.clone();
-        let id = connection_id.to_string();
+        let key = self.get_key(connection_id);
         let pass = password.to_string();
 
         tokio::task::spawn_blocking(move || {
-            let key = format!("connection:{}:password", id);    // namespace the key with the connection id to avoid conflicts
             let entry = Entry::new(&service, &key)?;
             entry.set_password(&pass)?;
             Ok::<_, keyring::Error>(())
@@ -35,12 +35,11 @@ impl CredentialService {
     pub async fn get_password(
         &self,
         connection_id: &str,
-    ) -> Result<String, Box<dyn Error + Send + Sync>> {
+    ) -> Result<String, CredentialError> {
         let service = self.service_name.clone();
-        let id = connection_id.to_string();
+        let key = self.get_key(connection_id);
 
         let password = tokio::task::spawn_blocking(move || {
-            let key = format!("connection:{}:password", id);
             let entry = Entry::new(&service, &key)?;
             entry.get_password()
         })
@@ -52,17 +51,20 @@ impl CredentialService {
     pub async fn delete_password(
         &self,
         connection_id: &str,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), CredentialError> {
         let service = self.service_name.clone();
-        let id = connection_id.to_string();
+        let key = self.get_key(connection_id);
 
         tokio::task::spawn_blocking(move || {
-            let key = format!("connection:{}:password", id);
             let entry = Entry::new(&service, &key)?;
             entry.delete_credential()
         })
         .await??;
 
         Ok(())
+    }
+
+    fn get_key(&self, connection_id: &str) -> String {
+        format!("connection:{}:basic_password", connection_id)
     }
 }
