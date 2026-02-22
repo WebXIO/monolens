@@ -34,6 +34,8 @@ pub fn run() {
         .setup(|app| {
             let path = app.path().app_config_dir().unwrap();
 
+            log::debug!("Load config from path {}", path.display());
+
             let repository = FileRepository::new(path, CredentialService::new("monolens-connections"));
 
             let state = create_app_state(repository);

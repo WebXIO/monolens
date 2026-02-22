@@ -27,20 +27,27 @@ impl MongoDbOfficialDriver {
             Ok(res) => res,
             Err(err) => {
                 log::warn!("Uri malformed: {}", err);
-                return Err(DriverError::UriMalformed(err.to_string()))
+                return Err(DriverError::UriMalformed(err.to_string()));
             }
         };
 
-        uri.set_port(Some(conn.port)).map_err(|_| DriverError::UriMalformed(format!("Could not set port to {}", conn.port)))?;
+        uri.set_port(Some(conn.port)).map_err(|_| {
+            DriverError::UriMalformed(format!("Could not set port to {}", conn.port))
+        })?;
 
         let mut query: Vec<String> = Vec::new();
-        
+
         match &conn.authentication.kind {
             AuthenticationKind::BASIC => {
-
-                uri.set_username(conn.authentication.username.as_deref().unwrap_or("root")).map_err(|_| DriverError::UriMalformed(String::from("Could not set username")))?;
-                uri.set_password(conn.authentication.password.as_deref()).map_err(|_| DriverError::UriMalformed(String::from("Could not set password")))?;
-            },
+                uri.set_username(conn.authentication.username.as_deref().unwrap_or("root"))
+                    .map_err(|_| {
+                        DriverError::UriMalformed(String::from("Could not set username"))
+                    })?;
+                uri.set_password(conn.authentication.password.as_deref())
+                    .map_err(|_| {
+                        DriverError::UriMalformed(String::from("Could not set password"))
+                    })?;
+            }
             AuthenticationKind::NONE => {}
         };
 
@@ -52,7 +59,13 @@ impl MongoDbOfficialDriver {
 
         uri.set_query(Some(query.join("&").as_str()));
 
-        log::debug!("Built connection query: {}", uri.as_str());
+        if cfg!(debug_assertions) {
+            let mut log_uri = uri.clone();
+            if log_uri.password().is_some() {
+                let _ = log_uri.set_password(Some("***"));
+            }
+            log::debug!("Built connection query: {}", log_uri.as_str());
+        }
 
         Ok(uri.to_string())
     }
