@@ -95,6 +95,7 @@ export const useTabsStore = defineStore("tabs", () => {
 
   return {
     tabs,
+    activeTab,
     addTab,
     switchTab,
     deleteTab,
