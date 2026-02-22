@@ -1,7 +1,7 @@
 use crate::{
     connector::models::{authentication::AuthenticationKind, connection::Connection},
     drivers::{
-        driver::{DatabaseDriver, TestStage},
+        driver::{DatabaseDriver, ProgressCallback, TestStage},
         errors::DriverError,
     },
 };
@@ -94,17 +94,20 @@ impl DatabaseDriver for MongoDbOfficialDriver {
 
     /// Testing Connection
     /// ## Steps
-    /// 1. Initialize Connection
+    /// 1. Initialize
     /// 2. Ping Database
-    /// 3. Reading Server stats
+    /// 3. Reading stats
     /// 4. Version detection
     /// 5. Connected
-    async fn test_connection(&self) -> Result<Vec<TestStage>, DriverError> {
+    async fn test_connection(
+        &self,
+        on_progress: ProgressCallback,
+    ) -> Result<Vec<TestStage>, DriverError> {
         let mut stages: Vec<TestStage> = vec![
-            TestStage::new(None, String::from("Initialize Connection")),
+            TestStage::new(None, String::from("Initialize")),
             TestStage::new(None, String::from("Ping Database")),
-            TestStage::new(None, String::from("Reading Server status")),
-            TestStage::new(None, String::from("Detecting Mongodb version")),
+            TestStage::new(None, String::from("Reading status")),
+            TestStage::new(None, String::from("Detecting version")),
             TestStage::new(None, String::from("Connected")),
         ];
 
@@ -114,6 +117,7 @@ impl DatabaseDriver for MongoDbOfficialDriver {
             .as_ref()
             .ok_or(DriverError::ClientNotInitialized)?;
         stages[0].status = Some(true);
+        on_progress(0, &stages[0]);
 
         let default_database_name = self
             .connection
@@ -131,6 +135,7 @@ impl DatabaseDriver for MongoDbOfficialDriver {
             .await
             .map_err(|e| DriverError::PingFailed(e.to_string()))?;
         stages[1].status = Some(true);
+        on_progress(1, &stages[1]);
 
         // Stage 2: Reading Server status
         let server_status = default_database
@@ -138,6 +143,7 @@ impl DatabaseDriver for MongoDbOfficialDriver {
             .await
             .map_err(|e| DriverError::ServerStatusFailed(e.to_string()))?;
         stages[2].status = Some(true);
+        on_progress(2, &stages[2]);
 
         // Stage 3: Detecting MongoDB version
         if server_status.get_str("version").is_ok() {
@@ -145,9 +151,11 @@ impl DatabaseDriver for MongoDbOfficialDriver {
         } else {
             stages[3].status = Some(false);
         }
+        on_progress(3, &stages[3]);
 
         // Stage 4: Connected
         stages[4].status = Some(true);
+        on_progress(4, &stages[4]);
 
         Ok(stages)
     }

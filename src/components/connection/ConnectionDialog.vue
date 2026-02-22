@@ -86,15 +86,20 @@ const form = useForm({
   },
 });
 
-watch(() => props.connection, (conn) => {
+watch(() => props.connection, async (conn) => {
   if (conn) {
+    const useAuth = conn.authentication.kind !== AuthenticationKind.NONE;
+    let password = '';
+    if (useAuth && props.mode === 'edit') {
+      password = (await store.getConnectionPassword(conn.id)) ?? '';
+    }
     form.setValues({
       name: conn.name,
       uri: conn.uri,
       port: conn.port,
-      useAuth: conn.authentication.kind !== AuthenticationKind.NONE,
+      useAuth,
       username: conn.authentication.username || '',
-      password: conn.authentication.password || '',
+      password,
       authDatabase: conn.authentication.database || 'admin',
     });
   }
@@ -104,11 +109,10 @@ watch(isOpen, (open) => {
   if (!open) {
     form.resetForm();
     store.clearTestState();
-    testPassed.value = false;
+    showPassword.value = false;
   }
 });
 
-const testPassed = ref(false);
 const showPassword = ref(false);
 
 function buildConnectionFromForm(values: typeof form.values): Omit<Connection, 'id'> {
@@ -138,14 +142,11 @@ async function handleTest() {
     return;
   }
 
-  testPassed.value = false;
   const connection = buildConnectionFromForm(form.values);
   logger.trace('testing connection:', JSON.stringify(connection, null, 2));
   
   const stages = await store.testConnection(connection);
   logger.trace('test stages:', stages);
-  
-  testPassed.value = stages.length > 0 && stages.every(s => s.status === true);
 }
 
 async function handleSave() {
@@ -184,7 +185,7 @@ const everythingFilled = computed(() => {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="sm:max-w-[500px]">
+    <DialogContent class="sm:max-w-[700px]">
       <DialogHeader>
         <DialogTitle>{{ dialogTitle }}</DialogTitle>
         <DialogDescription>{{ dialogDescription }}</DialogDescription>
@@ -205,33 +206,35 @@ const everythingFilled = computed(() => {
           </FormItem>
         </FormField>
         
-        <FormField v-slot="{ componentField }" name="uri">
-          <FormItem>
-            <FormLabel>Host</FormLabel>
-            <FormControl>
-              <Input 
-                type="text" 
-                placeholder="localhost or mongodb+srv://..." 
-                v-bind="componentField" 
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        </FormField>
-        
-        <FormField v-slot="{ componentField }" name="port">
-          <FormItem>
-            <FormLabel>Port</FormLabel>
-            <FormControl>
-              <Input 
-                type="number" 
-                placeholder="27017" 
-                v-bind="componentField" 
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        </FormField>
+        <div class="grid grid-cols-3 gap-4">
+          <FormField v-slot="{ componentField }" name="uri">
+            <FormItem class="col-span-2">
+              <FormLabel>Host</FormLabel>
+              <FormControl>
+                <Input 
+                  type="text" 
+                  placeholder="localhost or mongodb+srv://..." 
+                  v-bind="componentField" 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          </FormField>
+          
+          <FormField v-slot="{ componentField }" name="port">
+            <FormItem>
+              <FormLabel>Port</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  placeholder="27017" 
+                  v-bind="componentField" 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          </FormField>
+        </div>
         
         <FormField v-slot="{ value, handleChange }" name="useAuth">
           <FormItem class="flex items-center gap-3">
@@ -247,60 +250,62 @@ const everythingFilled = computed(() => {
           </FormItem>
         </FormField>
         
-        <div v-if="useAuth" class="space-y-4 pl-4 border-l-2 border-muted">
-          <FormField v-slot="{ componentField }" name="username">
-            <FormItem>
-              <FormLabel>Username</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  placeholder="Username" 
-                  v-bind="componentField" 
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          </FormField>
-          
-          <FormField v-slot="{ componentField }" name="password">
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <div class="relative">
+        <div v-if="useAuth" class="pl-4 border-l-2 border-muted">
+          <div class="grid grid-cols-3 gap-4">
+            <FormField v-slot="{ componentField }" name="username">
+              <FormItem>
+                <FormLabel>Username</FormLabel>
+                <FormControl>
                   <Input 
-                    :type="showPassword ? 'text' : 'password'" 
-                    placeholder="Password" 
+                    type="text" 
+                    placeholder="Username" 
                     v-bind="componentField" 
-                    class="pr-10"
                   />
-                  <button
-                    type="button"
-                    class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    tabindex="-1"
-                    @click="showPassword = !showPassword"
-                  >
-                    <EyeOff v-if="showPassword" class="h-4 w-4" />
-                    <Eye v-else class="h-4 w-4" />
-                  </button>
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          </FormField>
-          
-          <FormField v-slot="{ componentField }" name="authDatabase">
-            <FormItem>
-              <FormLabel>Auth Database</FormLabel>
-              <FormControl>
-                <Input 
-                  type="text" 
-                  placeholder="admin" 
-                  v-bind="componentField" 
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          </FormField>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+            
+            <FormField v-slot="{ componentField }" name="password">
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <div class="relative">
+                    <Input 
+                      :type="showPassword ? 'text' : 'password'" 
+                      placeholder="Password" 
+                      v-bind="componentField" 
+                      class="pr-10"
+                    />
+                    <button
+                      type="button"
+                      class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabindex="-1"
+                      @click="showPassword = !showPassword"
+                    >
+                      <EyeOff v-if="showPassword" class="h-4 w-4" />
+                      <Eye v-else class="h-4 w-4" />
+                    </button>
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+            
+            <FormField v-slot="{ componentField }" name="authDatabase">
+              <FormItem>
+                <FormLabel>Auth Database</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="text" 
+                    placeholder="admin" 
+                    v-bind="componentField" 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            </FormField>
+          </div>
         </div>
         
         <div v-if="store.error" class="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
@@ -320,16 +325,28 @@ const everythingFilled = computed(() => {
       
       <DialogFooter class="gap-2">
         <Button 
+          v-if="store.isTesting"
+          type="button" 
+          variant="outline"
+          class="hover:bg-warning/10 hover:text-warning hover:border-warning/50 transition-colors"
+          @click="store.cancelTest()"
+        >
+          Cancel Test
+        </Button>
+        <Button 
+          v-else
           type="button" 
           variant="outline" 
-          :disabled="store.isTesting || !everythingFilled"
+          :disabled="!everythingFilled"
+          class="hover:bg-info/10 hover:text-info hover:border-info/50 transition-colors"
           @click="handleTest"
         >
-          {{ store.isTesting ? 'Testing...' : 'Test Connection' }}
+          Test Connection
         </Button>
         <Button 
           type="button" 
-          :disabled="!testPassed || store.isTesting"
+          :disabled="!everythingFilled || store.isTesting"
+          class="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-colors"
           @click="handleSave"
         >
           {{ mode === 'create' ? 'Create' : 'Save' }}

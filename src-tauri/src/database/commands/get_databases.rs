@@ -1,6 +1,6 @@
 use crate::AppState;
 use crate::connection_handler::connection_handler::ConnectionHandler;
-use crate::connector::models::authentication::AuthenticationKind;
+use crate::connector::repositories::credentials::hydrate_connection_with_credentials::hydrate_connection_with_credentials;
 use crate::connector::repositories::file_repository::FileRepository;
 use crate::connector::models::connection::Connection;
 use crate::drivers::errors::DriverError;
@@ -28,20 +28,4 @@ pub async fn get_databases(
 
     let driver = driver_lock.lock().await;
     driver.list_databases().await
-}
-
-async fn hydrate_connection_with_credentials(
-    repository: &FileRepository,
-    connection: &Connection,
-) -> Result<Connection, DriverError> {
-    let mut c = connection.clone();
-    if let AuthenticationKind::BASIC = c.authentication.kind {
-        let password = repository
-            .credential_service
-            .get_password(&c.id)
-            .await
-            .map_err(|_| DriverError::ConnectionFailed("Could not fetch credentials".into()))?;
-        c.authentication.password = Some(password);
-    }
-    Ok(c)
 }

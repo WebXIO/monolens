@@ -40,6 +40,11 @@ async function handleConnect(connection: Connection) {
   connectingId.value = null;
 }
 
+function handleCancelConnect() {
+  store.cancelConnect();
+  connectingId.value = null;
+}
+
 async function handleDelete(connection: Connection) {
   if (confirm(`Delete connection "${connection.name}"?`)) {
     await store.deleteConnection(connection.id);
@@ -100,12 +105,21 @@ function handleSaved(_connection: Connection) {
         </div>
         
         <Button 
-          class="w-full mt-3"
-          :disabled="connectingId === connection.id"
+          v-if="connectingId === connection.id"
+          class="w-full mt-3 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50 transition-colors"
+          variant="outline"
+          @click.stop="handleCancelConnect"
+        >
+          <Loader2 class="w-4 h-4 mr-2 animate-spin" />
+          Cancel
+        </Button>
+        <Button 
+          v-else
+          class="w-full mt-3 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-colors"
+          :disabled="connectingId !== null"
           @click="handleConnect(connection)"
         >
-          <Loader2 v-if="connectingId === connection.id" class="w-4 h-4 mr-2 animate-spin" />
-          {{ connectingId === connection.id ? 'Connecting...' : 'Connect' }}
+          Connect
         </Button>
       </div>
       

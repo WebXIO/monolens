@@ -15,11 +15,16 @@ impl TestStage {
     }
 }
 
+pub type ProgressCallback = Box<dyn Fn(usize, &TestStage) + Send + Sync>;
+
 #[async_trait]
 pub trait DatabaseDriver: Send + Sync {
     async fn connect(&mut self) -> Result<(), DriverError>;
     async fn disconnect(&mut self) -> Result<(), DriverError>;
-    async fn test_connection(&self) -> Result<Vec<TestStage>, DriverError>;
+    async fn test_connection(
+        &self,
+        on_progress: ProgressCallback,
+    ) -> Result<Vec<TestStage>, DriverError>;
     async fn list_databases(&self) -> Result<Vec<String>, DriverError>;
     async fn list_collections(&self, database_name: &str) -> Result<Vec<String>, DriverError>;
 }

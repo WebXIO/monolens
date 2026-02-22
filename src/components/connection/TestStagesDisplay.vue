@@ -1,9 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Check, X, Loader2, ChevronDown, ChevronRight } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { Check, X, Loader2, Circle, ChevronDown, ChevronRight } from 'lucide-vue-next';
+import {
+  Stepper,
+  StepperItem,
+  StepperTrigger,
+  StepperIndicator,
+  StepperTitle,
+  StepperSeparator,
+} from '@/components/ui/stepper';
 import type { TestStage } from '@/domains/connections';
 
-defineProps<{
+const props = defineProps<{
   stages: TestStage[];
   error?: string | null;
   errorDetail?: string | null;
@@ -11,26 +19,100 @@ defineProps<{
 }>();
 
 const showDetail = ref(false);
+
+const currentStep = computed(() => {
+  const failedIdx = props.stages.findIndex((s) => s.status === false);
+  if (failedIdx !== -1) return failedIdx + 1;
+
+  const pendingIdx = props.stages.findIndex((s) => s.status === null);
+  if (pendingIdx !== -1) return pendingIdx + 1;
+
+  return props.stages.length + 1;
+});
+
+function isActiveStage(index: number) {
+  return props.isLoading && currentStep.value === index + 1;
+}
+
+function indicatorClass(stage: TestStage, index: number) {
+  if (stage.status === true) {
+    return 'bg-success text-success-foreground';
+  }
+  if (stage.status === false) {
+    return 'bg-destructive text-destructive-foreground';
+  }
+  if (isActiveStage(index)) {
+    return 'border-2 border-primary text-primary';
+  }
+  return 'border-2 border-muted-foreground/20 text-muted-foreground/30';
+}
+
+function separatorClass(stage: TestStage) {
+  if (stage.status === true) return 'bg-success';
+  if (stage.status === false) return 'bg-destructive';
+  return 'bg-muted-foreground/20';
+}
+
+function titleClass(stage: TestStage) {
+  if (stage.status === true) return 'text-foreground';
+  if (stage.status === false) return 'text-destructive';
+  return 'text-muted-foreground';
+}
+
+function itemAlignClass(index: number) {
+  if (index === 0) return 'items-start';
+  if (index === props.stages.length - 1) return 'items-end';
+  return 'items-center';
+}
 </script>
 
 <template>
-  <div class="space-y-2">
-    <div v-for="(stage, index) in stages" :key="index" class="flex items-center gap-3 text-sm">
-      <div class="w-5 h-5 flex items-center justify-center">
-        <Check v-if="stage.status === true" class="w-4 h-4 text-green-500" />
-        <X v-else-if="stage.status === false" class="w-4 h-4 text-red-500" />
-        <Loader2 v-else-if="isLoading && stages.findIndex(s => s.status === null) === index"
-          class="w-4 h-4 text-muted-foreground animate-spin" />
-        <div v-else class="w-2 h-2 rounded-full bg-muted-foreground/30" />
-      </div>
+  <div>
+    <Stepper
+      :model-value="currentStep"
+      orientation="horizontal"
+      class="!gap-0 w-full"
+    >
+      <template v-for="(stage, index) in stages" :key="index">
+        <StepperItem
+          :step="index + 1"
+          :class="['!gap-0 flex-col flex-1', itemAlignClass(index)]"
+        >
+          <StepperTrigger
+            as="div"
+            class="!p-0 !rounded-none pointer-events-none flex-row items-center !gap-0 w-full"
+          >
+            <StepperSeparator
+              v-if="index > 0"
+              :class="separatorClass(stages[index - 1])"
+              class="!h-0.5 flex-1 rounded-full"
+            />
+            <StepperIndicator :class="indicatorClass(stage, index)">
+              <Check v-if="stage.status === true" class="size-3.5" />
+              <X v-else-if="stage.status === false" class="size-3.5" />
+              <Loader2
+                v-else-if="isActiveStage(index)"
+                class="size-3.5 animate-spin"
+              />
+              <Circle v-else class="size-2 fill-current" />
+            </StepperIndicator>
+            <StepperSeparator
+              v-if="index < stages.length - 1"
+              :class="separatorClass(stage)"
+              class="!h-0.5 flex-1 rounded-full"
+            />
+            <div v-else class="flex-1" />
+          </StepperTrigger>
 
-      <span :class="[
-        stage.status === true ? 'text-foreground' : 'text-muted-foreground',
-        stage.status === false ? 'text-red-500' : ''
-      ]">
-        {{ stage.title }}
-      </span>
-    </div>
+          <StepperTitle
+            :class="titleClass(stage)"
+            class="!text-xs !font-normal mt-1.5 text-center whitespace-nowrap"
+          >
+            {{ stage.title }}
+          </StepperTitle>
+        </StepperItem>
+      </template>
+    </Stepper>
 
     <div v-if="error" class="mt-3 p-3 bg-destructive/10 border border-destructive/20 rounded-md w-100 break-words">
       <p class="text-sm text-destructive">{{ error }}</p>
