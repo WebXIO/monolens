@@ -55,6 +55,7 @@ pub fn run() {
             database::commands::start_connect::start_connect,
             database::commands::get_databases::get_databases,
             database::commands::list_collections::list_collections,
+            database::commands::start_find_documents::start_find_documents,
             connector::commands::get_connections::get_connections,
             connector::commands::get_connection::get_connection,
             connector::commands::get_connection_password::get_connection_password,

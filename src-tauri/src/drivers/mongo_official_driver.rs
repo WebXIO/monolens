@@ -1,11 +1,11 @@
 use crate::{
-    connector::models::{authentication::AuthenticationKind, connection::Connection},
-    drivers::{
+    connector::models::{authentication::AuthenticationKind, connection::Connection}, database::models::find_document::FindDocumentsResult, drivers::{
         driver::{DatabaseDriver, ProgressCallback, TestStage},
         errors::DriverError,
-    },
+    }
 };
 use async_trait::async_trait;
+use futures::StreamExt;
 use mongodb::{bson::doc, Client};
 
 pub struct MongoDbOfficialDriver {
@@ -183,5 +183,57 @@ impl DatabaseDriver for MongoDbOfficialDriver {
         database.list_collection_names().await.map_err(|e| {
             DriverError::ListCollectionsFailed(database_name.to_string(), e.to_string())
         })
+    }
+
+    async fn find_documents(
+        &self,
+        database_name: &str,
+        collection_name: &str,
+        filter: serde_json::Value,
+        skip: u64,
+        limit: i64
+    ) -> Result<FindDocumentsResult, DriverError> {
+        let client = self
+            .client
+            .as_ref()
+            .ok_or(DriverError::ClientNotInitialized)?;
+
+        let database = client.database(&database_name);
+        let collection = database.collection::<mongodb::bson::Document>(&collection_name);
+
+        let filter_doc = match mongodb::bson::to_document(&filter) {
+            Ok(doc) => doc,
+            Err(e) => {
+                log::warn!("Failed to convert filter to BSON document: {}", e);
+                return Err(DriverError::FindDocumentsFailed);
+            }
+        };
+
+        let mut cursor = collection
+            .find(filter_doc.clone())
+            .skip(skip)
+            .limit(limit)
+            .allow_disk_use(true)
+            .await
+            .map_err(|_| DriverError::FindDocumentsFailed)?;
+
+        let mut documents = Vec::new();
+        while let Some(result) = cursor.next().await {
+            match result {
+                Ok(doc) => documents.push(serde_json::to_value(doc).unwrap_or_default()),
+                Err(_) => {
+                    log::warn!("Failed to read document from cursor");
+                    return Err(DriverError::FindDocumentsFailed);
+                }
+            }
+        }
+
+        // Get total count of matching documents without skip/limit
+        let total_count = collection
+            .count_documents(filter_doc.clone())
+            .await
+            .map_err(|_| DriverError::FindDocumentsFailed)?;
+
+        Ok(FindDocumentsResult { documents, total_count })
     }
 }

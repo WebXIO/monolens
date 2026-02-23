@@ -1,5 +1,6 @@
 import { Result } from "@/utils/result";
 import { Connection, TestStage } from "../models";
+import { FindDocumentsResult } from "../models/findDocumentsResult";
 
 export abstract class ConnectionService {
   abstract listConnections(): Promise<Result<Connection[]>>;
@@ -12,4 +13,5 @@ export abstract class ConnectionService {
   abstract getConnectionPassword(id: string): Promise<Result<string | null>>;
   abstract testConnection(connection: Omit<Connection, 'id'>, options?: { signal?: AbortSignal }): Promise<TestStage[]>;
   abstract connect(connection: Connection, options?: { signal?: AbortSignal }): Promise<string[]>;
+  abstract findDocuments(connection: Connection, databaseName: string, collectionName: string, filter: Record<string, unknown>, skip: number, limit: number, options?: { signal?: AbortSignal }): Promise<FindDocumentsResult>;
 }

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-
 use super::errors::DriverError;
+use crate::database::models::find_document::FindDocumentsResult;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TestStage {
@@ -27,4 +27,12 @@ pub trait DatabaseDriver: Send + Sync {
     ) -> Result<Vec<TestStage>, DriverError>;
     async fn list_databases(&self) -> Result<Vec<String>, DriverError>;
     async fn list_collections(&self, database_name: &str) -> Result<Vec<String>, DriverError>;
+    async fn find_documents(
+        &self,
+        database_name: &str,
+        collection_name: &str,
+        filter: serde_json::Value,
+        skip: u64,
+        limit: i64
+    ) -> Result<FindDocumentsResult, DriverError>;
 }
