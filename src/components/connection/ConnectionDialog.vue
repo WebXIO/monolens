@@ -308,16 +308,10 @@ const everythingFilled = computed(() => {
           </div>
         </div>
         
-        <div v-if="store.error" class="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-          <p class="text-sm text-destructive">{{ store.error }}</p>
-        </div>
-
-        <div v-if="store.testStages.length > 0 || store.isTesting || store.testError" class="pt-4 border-t">
+        <div v-if="store.testStages.length > 0 || store.isTesting" class="pt-4 border-t">
           <h4 class="text-sm font-medium mb-2">Connection Test</h4>
           <TestStagesDisplay 
             :stages="store.testStages" 
-            :error="store.testError"
-            :error-detail="store.testErrorDetail"
             :is-loading="store.isTesting"
           />
         </div>

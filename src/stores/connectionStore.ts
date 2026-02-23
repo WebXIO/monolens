@@ -6,6 +6,7 @@ import { extractErrorMessage } from '@/utils/errorMessage';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
+import { toast } from 'vue-sonner';
 
 // this is how the payload from Rust looks like for progress events
 interface TestProgressPayload {
@@ -25,11 +26,8 @@ export const useConnectionStore = defineStore('connection', () => {
   const databases = ref<string[]>([]);
   const isTesting = ref(false);
   const testStages = ref<TestStage[]>([]);
-  const testError = ref<string | null>(null);
-  const testErrorDetail = ref<string | null>(null);
 
   const isLoading = ref(false);
-  const error = ref<string | null>(null);
   const isDatabasesLoading = ref(false);
 
   const testAbortController = ref<AbortController | null>(null);
@@ -37,13 +35,12 @@ export const useConnectionStore = defineStore('connection', () => {
 
   async function loadConnections() {
     isLoading.value = true;
-    error.value = null;
 
     const result = await connectionService.listConnections();
     if (result.data) {
       connections.value = result.data;
     } else {
-      error.value = extractErrorMessage(result.error);
+      toast.error(extractErrorMessage(result.error));
     }
     isLoading.value = false;
   }
@@ -54,7 +51,7 @@ export const useConnectionStore = defineStore('connection', () => {
       connections.value.push(created.data);
       return created.data;
     } else {
-      error.value = extractErrorMessage(created.error);
+      toast.error(extractErrorMessage(created.error));
       return null;
     }
   }
@@ -62,7 +59,7 @@ export const useConnectionStore = defineStore('connection', () => {
   async function updateConnection(id: string, connection: Connection): Promise<boolean> {
     const result = await connectionService.updateConnection(id, connection);
     if (result.error) {
-      error.value = extractErrorMessage(result.error);
+      toast.error(extractErrorMessage(result.error));
       return false;
     }
     const index = connections.value.findIndex(c => c.id === id);
@@ -70,7 +67,7 @@ export const useConnectionStore = defineStore('connection', () => {
       connections.value[index] = connection;
       return true;
     } else {
-      error.value = `Connection with id ${id} not found.`;
+      toast.error(`Connection with id ${id} not found.`);
       return false;
     }
   }
@@ -78,7 +75,7 @@ export const useConnectionStore = defineStore('connection', () => {
   async function deleteConnection(id: string): Promise<boolean> {
     const result = await connectionService.deleteConnection(id);
     if (result.error) {
-      error.value = extractErrorMessage(result.error);
+      toast.error(extractErrorMessage(result.error));
       return false;
     }
     connections.value = connections.value.filter(c => c.id !== id);
@@ -91,7 +88,6 @@ export const useConnectionStore = defineStore('connection', () => {
 
   async function connectTo(connection: Connection): Promise<boolean> {
     isDatabasesLoading.value = true;
-    error.value = null;
 
     const controller = new AbortController();
     connectAbortController.value = controller;
@@ -104,10 +100,9 @@ export const useConnectionStore = defineStore('connection', () => {
     } catch (e) {
       if (e instanceof TaskCancelledError) {
         logger.info('connectTo was cancelled by user');
-        error.value = null;
         return false;
       }
-      error.value = extractErrorMessage(e);
+      toast.error(extractErrorMessage(e));
       return false;
     } finally {
       connectAbortController.value = null;
@@ -121,8 +116,6 @@ export const useConnectionStore = defineStore('connection', () => {
 
   async function testConnection(connection: Omit<Connection, 'id'>): Promise<TestStage[]> {
     isTesting.value = true;
-    testError.value = null;
-    testErrorDetail.value = null;
     testStages.value = _createPendingStages();
 
     const controller = new AbortController();
@@ -145,14 +138,11 @@ export const useConnectionStore = defineStore('connection', () => {
     } catch (e) {
       if (e instanceof TaskCancelledError) {
         logger.info('testConnection was cancelled by user');
-        testError.value = 'Test cancelled.';
+        toast.info('Test cancelled.');
         return [];
       }
       logger.error('test_connection error:', e);
-      testError.value = extractErrorMessage(e);
-      if (typeof e === 'object' && e !== null && 'message' in e) {
-        testErrorDetail.value = (e as Record<string, unknown>).message as string;
-      }
+      toast.error(extractErrorMessage(e));
       return [];
     } finally {
       unlisten?.();
@@ -172,8 +162,6 @@ export const useConnectionStore = defineStore('connection', () => {
 
   function clearTestState() {
     testStages.value = [];
-    testError.value = null;
-    testErrorDetail.value = null;
     isTesting.value = false;
   }
 
@@ -212,12 +200,9 @@ export const useConnectionStore = defineStore('connection', () => {
     activeConnection,
     activeConnectionId,
     isLoading,
-    error,
     hasConnections,
     testStages,
     isTesting,
-    testError,
-    testErrorDetail,
     databases,
     isDatabasesLoading,
   }
