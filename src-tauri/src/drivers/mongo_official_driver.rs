@@ -228,9 +228,9 @@ impl DatabaseDriver for MongoDbOfficialDriver {
             }
         }
 
-        // Get total count of matching documents without skip/limit
+        // Get total count of matching documents without skip/limit and give up ownership as we do not need it further
         let total_count = collection
-            .count_documents(filter_doc.clone())
+            .count_documents(filter_doc)
             .await
             .map_err(|_| DriverError::FindDocumentsFailed)?;
 
