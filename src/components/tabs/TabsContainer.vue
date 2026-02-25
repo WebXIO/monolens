@@ -53,7 +53,9 @@ const components = {
       </div>
       <div>
          <div v-if="currentTabType">
-            <component :is="components[currentTabType]"></component>
+            <KeepAlive>
+               <component :is="components[currentTabType]" :key="tabsStore.activeTab ?? ''" />
+            </KeepAlive>
          </div>
       </div>
    </div>

@@ -7,35 +7,54 @@ import { useConnectionStore } from '@/stores/connectionStore';
 import { useTabsStore } from '@/stores/tabsStore';
 import { invoke } from '@tauri-apps/api/core';
 import { onMounted, onUnmounted, ref } from 'vue';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from "@/components/ui/button"
+import { RefreshCcw, Loader2, Play } from 'lucide-vue-next';
+import {
+   DropdownMenu,
+   DropdownMenuContent,
+   DropdownMenuItem,
+   DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const commandHandler = useDomain<CommandRegistry>(CommandRegistry);
 const tabsStore = useTabsStore();
 const connectionStore = useConnectionStore();
+const loading = ref(false);
 
 const query = ref<string>('{ }');
-const limit = ref<number | undefined>();
+const limit = ref<number>(50);
 const skip = ref<number | undefined>();
 const result = ref<any>({});
 
+const limitOptions = [10, 25, 50, 100, 200];
+
 async function execute() {
-   if(!connectionStore.activeConnection) return;
-   const tab = tabsStore.getActiveTab(); 
-   if(!tab) return;
+   if (!connectionStore.activeConnection) return;
+   const tab = tabsStore.getActiveTab();
+   if (!tab) return;
 
-   const id = await invoke('start_find_documents', {
-      connection: connectionStore.activeConnection,
-      databaseName: tab.context.database,
-      collectionName: tab.context.collection,
-      filter: JSON.parse(query.value),
-      skip: 0,
-      limit: 300,
-   })
+   loading.value = true;
 
-   result.value = await invoke('await_task_result', { id });
+   try {
+      const id = await invoke('start_find_documents', {
+         connection: connectionStore.activeConnection,
+         databaseName: tab.context.database,
+         collectionName: tab.context.collection,
+         filter: JSON.parse(query.value),
+         skip: 0,
+         limit: limit.value,
+      });
+
+      result.value = await invoke('await_task_result', { id });
+   } finally {
+      loading.value = false;
+   }
 }
 
 onMounted(() => {
    commandHandler.subscribe(Commands.EVENT_EXECUTE, execute);
+   execute();
 })
 
 onUnmounted(() => {
@@ -45,11 +64,59 @@ onUnmounted(() => {
 </script>
 
 <template>
-   <div class="pa-2">
-      <Label>Query</Label>
-      <Input v-model="query" />
+   <div class="p-2">
+      <div class="grid grid-cols-12 items-end gap-2">
+         <div class="col-span-9">
+            <Label>Query</Label>
+            <Input v-model="query" />
+         </div>
+         <div class="col-span-3 flex items-center gap-1">
+            <DropdownMenu>
+               <DropdownMenuTrigger as-child>
+                  <Button variant="outline" size="sm" class="h-9 text-xs tabular-nums">
+                     Limit: {{ limit }}
+                  </Button>
+               </DropdownMenuTrigger>
+               <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                     v-for="opt in limitOptions"
+                     :key="opt"
+                     @click="limit = opt"
+                  >
+                     {{ opt }}
+                  </DropdownMenuItem>
+               </DropdownMenuContent>
+            </DropdownMenu>
+            <TooltipProvider>
+               <Tooltip>
+                  <TooltipTrigger as-child>
+                     <Button variant="default" size="icon" class="h-9 w-9" :disabled="loading" @click="execute">
+                        <Loader2 v-if="loading" class="h-4 w-4 animate-spin" />
+                        <Play v-else class="h-4 w-4" />
+                     </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" class="text-xs">
+                     Execute Query
+                  </TooltipContent>
+               </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+               <Tooltip>
+                  <TooltipTrigger as-child>
+                     <Button variant="ghost" size="icon" class="h-9 w-9" :disabled="loading" @click="execute">
+                        <Loader2 v-if="loading" class="h-4 w-4 animate-spin" />
+                        <RefreshCcw v-else class="h-4 w-4" />
+                     </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" class="text-xs">
+                     Refresh
+                  </TooltipContent>
+               </Tooltip>
+            </TooltipProvider>
+         </div>
+      </div>
 
-      <div class="border border-b border-primary"></div>
+      <div class="mt-2 border border-b border-primary"></div>
       {{ result }}
    </div>
 </template>
