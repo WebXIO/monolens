@@ -71,6 +71,7 @@ async function execute() {
 
 onMounted(() => {
    commandHandler.subscribe(Commands.EVENT_EXECUTE, execute);
+   execute();
 })
 
 onUnmounted(() => {
