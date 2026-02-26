@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:frontend": "vitest"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
@@ -38,6 +39,7 @@
     "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
+    "vitest": "^4.0.18",
     "vue-tsc": "^2.1.10"
   }
 }

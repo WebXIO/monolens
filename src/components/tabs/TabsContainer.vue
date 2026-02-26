@@ -52,11 +52,14 @@ const components = {
          </div>
       </div>
       <div>
-         <div v-if="currentTabType">
-            <KeepAlive>
-               <component :is="components[currentTabType]" :key="tabsStore.activeTab ?? ''" />
-            </KeepAlive>
-         </div>
+         <template v-for="[id] in tabsStore.tabs.entries()" :key="id">
+            <div v-if="tabsStore.activeTab === id">
+               <KeepAlive>
+                  <component :is="components[currentTabType]" :key="tabsStore.activeTab ?? ''" />
+               </KeepAlive>
+            </div>
+         </template>
+
       </div>
    </div>
 </template>
