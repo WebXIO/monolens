@@ -123,6 +123,7 @@ function getDocumentTitle(document: JsonDocument, index: number): string {
 watch(
    () => props.documents,
    (documents) => {
+      if(!editors.keys()) return;
       expandedIndexes.value = new Set(documents.map((_, index) => index));
 
       for (const index of Array.from(editors.keys())) {

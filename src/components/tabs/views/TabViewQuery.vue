@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import JSONDocumentsEditor from '@/components/documents/json/JSONDocumentsEditor.vue';
+import QueryInput from '@/components/query/QueryInput.vue';
 import { Button } from "@/components/ui/button";
 import {
    DropdownMenu,
@@ -9,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDomain } from '@/domains';
 import { FindDocumentsResult } from '@/domains/connections/models/findDocumentsResult';
@@ -18,7 +20,7 @@ import { useTabsStore } from '@/stores/tabsStore';
 import { parseMongoDbQuery } from '@/utils/queryParser';
 import { invoke } from '@tauri-apps/api/core';
 import { Loader2, Play, RefreshCcw } from 'lucide-vue-next';
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { toast } from "vue-sonner";
 
 const commandHandler = useDomain<CommandRegistry>(CommandRegistry);
@@ -32,6 +34,8 @@ const limit = ref<number>(50);
 const result = ref<FindDocumentsResult>({ documents: [], totalCount: 0 });
 const queryInputId = 'query-filter-input';
 
+const collectionProperties = ref<string[]>([]);
+
 const limitOptions = [10, 25, 50, 100, 200];
 
 async function execute() {
@@ -39,12 +43,11 @@ async function execute() {
    const tab = tabsStore.getActiveTab();
    if (!tab) return;
 
-   if(!query.value) query.value = '{}'
+   if (!query.value) query.value = '{}'
 
    let queryParsed = {};
 
    try {
-      console.log(query.value);
       queryParsed = parseMongoDbQuery(query.value)
    } catch (err) {
       toast.error(String(err))
@@ -64,6 +67,12 @@ async function execute() {
       });
 
       result.value = await invoke<FindDocumentsResult>('await_task_result', { id });
+
+      if (result.value.documents.length) {
+         collectionProperties.value = [...new Set(...result.value.documents.map((d) => Object.keys(d))).values()]
+      }
+
+
    } finally {
       loading.value = false;
    }
@@ -85,7 +94,7 @@ onUnmounted(() => {
       <div class="grid grid-cols-12 items-end gap-2">
          <div class="col-span-9">
             <Label :for="queryInputId">Query</Label>
-            <Input :id="queryInputId" v-model="query" />
+            <QueryInput :id="queryInputId" v-model="query" :collection-properties="collectionProperties" />
          </div>
          <div class="col-span-3 flex items-center gap-1">
             <DropdownMenu>
@@ -130,10 +139,11 @@ onUnmounted(() => {
       </div>
 
       <div class="mt-2 border border-b border-primary"></div>
+      <ScrollArea>
 
-      <div class="mt-3">
          <JSONDocumentsEditor :documents="result.documents" />
-      </div>
+
+      </ScrollArea>
 
    </div>
 </template>
