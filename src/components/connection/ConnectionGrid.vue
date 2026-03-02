@@ -132,13 +132,6 @@ function handleSaved(_connection: Connection) {
       </button>
     </div>
     
-    <div 
-      v-if="store.error" 
-      class="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg max-w-md"
-    >
-      <p class="text-sm text-destructive">{{ store.error }}</p>
-    </div>
-    
     <ConnectionDialog
       v-model:open="dialogOpen"
       :mode="dialogMode"

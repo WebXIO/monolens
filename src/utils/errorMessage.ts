@@ -37,14 +37,3 @@ export function extractErrorMessage(e: unknown): string {
 
   return 'An unexpected error occurred.';
 }
-
-/**
- * Extracts the raw technical detail from a backend error, if available.
- * Useful for a "Show details" toggle in the UI.
- */
-export function extractErrorDetail(e: unknown): string | null {
-  if (isBackendError(e) && e.message) {
-    return e.message;
-  }
-  return null;
-}

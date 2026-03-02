@@ -27,6 +27,9 @@ pub enum DriverError {
 
     #[error("Unknown driver type")]
     UnknownDriver,
+
+    #[error("Failed to find documents")]
+    FindDocumentsFailed,
 }
 
 impl DriverError {
@@ -77,6 +80,7 @@ impl DriverError {
                 String::from("The connection URI is invalid. Please check the format.")
             }
             DriverError::UnknownDriver => String::from("Unsupported database driver."),
+            DriverError::FindDocumentsFailed => String::from("Failed to find documents. Check your permissions on this database.")
         }
     }
 
@@ -109,6 +113,7 @@ impl DriverError {
             DriverError::ServerStatusFailed(_) => "ServerStatusFailed",
             DriverError::UriMalformed(_) => "UriMalformed",
             DriverError::UnknownDriver => "UnknownDriver",
+            DriverError::FindDocumentsFailed => "FindDocumentsFailed",
         }
     }
 }
