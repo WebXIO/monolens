@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import JSONDocumentsEditor from '@/components/documents/json/JSONDocumentsEditor.vue';
+import { DocumentViewMode } from '@/components/documents/models/types';
+import TableDocumentsView from '@/components/documents/table/TableDocumentsView.vue';
 import QueryInput from '@/components/query/QueryInput.vue';
 import { Button } from "@/components/ui/button";
 import {
@@ -18,8 +20,8 @@ import { useConnectionStore } from '@/stores/connectionStore';
 import { useTabsStore } from '@/stores/tabsStore';
 import { parseMongoDbQuery } from '@/utils/queryParser';
 import { invoke } from '@tauri-apps/api/core';
-import { Loader2, Play, RefreshCcw } from 'lucide-vue-next';
-import { onMounted, onUnmounted, ref } from 'vue';
+import { Braces, Loader2, Play, RefreshCcw, TableIcon } from 'lucide-vue-next';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { toast } from "vue-sonner";
 
 const commandHandler = useDomain<CommandRegistry>(CommandRegistry);
@@ -27,6 +29,7 @@ const tabsStore = useTabsStore();
 const connectionStore = useConnectionStore();
 
 const loading = ref(false);
+const viewMode = ref<DocumentViewMode>(DocumentViewMode.TABLE);
 
 const query = ref<string>('{ }');
 const limit = ref<number>(50);
@@ -36,6 +39,12 @@ const queryInputId = 'query-filter-input';
 const collectionProperties = ref<string[]>([]);
 
 const limitOptions = [10, 25, 50, 100, 200];
+
+const tableStorageKey = computed(() => {
+   const tab = tabsStore.getActiveTab();
+   if (!tab || !connectionStore.activeConnection) return '';
+   return `${connectionStore.activeConnection.id}:${tab.context.database}:${tab.context.collection}`;
+});
 
 async function execute() {
    if (!connectionStore.activeConnection) return;
@@ -134,13 +143,51 @@ onUnmounted(() => {
                   </TooltipContent>
                </Tooltip>
             </TooltipProvider>
+
+            <div class="ml-auto flex items-center rounded-md border border-border">
+               <TooltipProvider>
+                  <Tooltip>
+                     <TooltipTrigger as-child>
+                        <Button
+                           :variant="viewMode === DocumentViewMode.TABLE ? 'secondary' : 'ghost'"
+                           size="icon"
+                           class="hover:bg-info/10 hover:text-info hover:border-info/50 transition-colors"
+                           @click="viewMode = DocumentViewMode.TABLE"
+                        >
+                           <TableIcon class="h-4 w-4" />
+                        </Button>
+                     </TooltipTrigger>
+                     <TooltipContent side="bottom" class="text-xs">
+                        Table View
+                     </TooltipContent>
+                  </Tooltip>
+               </TooltipProvider>
+               <TooltipProvider>
+                  <Tooltip>
+                     <TooltipTrigger as-child>
+                        <Button
+                           :variant="viewMode === DocumentViewMode.JSON ? 'secondary' : 'ghost'"
+                           size="icon"
+                           class="hover:bg-info/10 hover:text-info hover:border-info/50 transition-colors"
+                           @click="viewMode = DocumentViewMode.JSON"
+                        >
+                           <Braces class="h-4 w-4" />
+                        </Button>
+                     </TooltipTrigger>
+                     <TooltipContent side="bottom" class="text-xs">
+                        JSON View
+                     </TooltipContent>
+                  </Tooltip>
+               </TooltipProvider>
+            </div>
          </div>
       </div>
 
       <div class="mt-2 shrink-0 border border-b border-primary"></div>
       <ScrollArea class="flex-1 min-h-0">
 
-         <JSONDocumentsEditor :documents="result.documents" />
+         <JSONDocumentsEditor v-if="viewMode === DocumentViewMode.JSON" :documents="result.documents" />
+         <TableDocumentsView v-else :documents="result.documents" :storage-key="tableStorageKey" />
 
       </ScrollArea>
 

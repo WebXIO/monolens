@@ -5,8 +5,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { basicSetup, EditorView } from 'codemirror';
 import { ChevronDown, ChevronRight } from 'lucide-vue-next';
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
-
-type JsonDocument = Record<string, unknown>;
+import { JsonDocument } from '../models/types';
 
 const props = withDefaults(
    defineProps<{
