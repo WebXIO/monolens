@@ -8,7 +8,6 @@ import {
    DropdownMenuItem,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -20,7 +19,7 @@ import { useTabsStore } from '@/stores/tabsStore';
 import { parseMongoDbQuery } from '@/utils/queryParser';
 import { invoke } from '@tauri-apps/api/core';
 import { Loader2, Play, RefreshCcw } from 'lucide-vue-next';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { toast } from "vue-sonner";
 
 const commandHandler = useDomain<CommandRegistry>(CommandRegistry);
@@ -90,25 +89,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-   <div class="p-2">
+   <div class="flex h-full flex-col p-2">
       <div class="grid grid-cols-12 items-end gap-2">
          <div class="col-span-9">
             <Label :for="queryInputId">Query</Label>
             <QueryInput :id="queryInputId" v-model="query" :collection-properties="collectionProperties" />
          </div>
          <div class="col-span-3 flex items-center gap-1">
-            <DropdownMenu>
-               <DropdownMenuTrigger as-child>
-                  <Button variant="outline" size="sm" class="h-9 text-xs tabular-nums">
-                     Limit: {{ limit }}
-                  </Button>
-               </DropdownMenuTrigger>
-               <DropdownMenuContent align="end">
-                  <DropdownMenuItem v-for="opt in limitOptions" :key="opt" @click="limit = opt">
-                     {{ opt }}
-                  </DropdownMenuItem>
-               </DropdownMenuContent>
-            </DropdownMenu>
             <TooltipProvider>
                <Tooltip>
                   <TooltipTrigger as-child>
@@ -122,6 +109,18 @@ onUnmounted(() => {
                   </TooltipContent>
                </Tooltip>
             </TooltipProvider>
+            <DropdownMenu>
+               <DropdownMenuTrigger as-child>
+                  <Button variant="outline" size="sm" class="h-9 text-xs tabular-nums">
+                     Limit: {{ limit }}
+                  </Button>
+               </DropdownMenuTrigger>
+               <DropdownMenuContent align="end">
+                  <DropdownMenuItem v-for="opt in limitOptions" :key="opt" @click="limit = opt">
+                     {{ opt }}
+                  </DropdownMenuItem>
+               </DropdownMenuContent>
+            </DropdownMenu>
             <TooltipProvider>
                <Tooltip>
                   <TooltipTrigger as-child>
@@ -138,8 +137,8 @@ onUnmounted(() => {
          </div>
       </div>
 
-      <div class="mt-2 border border-b border-primary"></div>
-      <ScrollArea>
+      <div class="mt-2 shrink-0 border border-b border-primary"></div>
+      <ScrollArea class="flex-1 min-h-0">
 
          <JSONDocumentsEditor :documents="result.documents" />
 

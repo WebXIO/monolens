@@ -21,7 +21,7 @@ onMounted(() => {
   <div class="[--header-height:calc(--spacing(14))]">
     <SidebarProvider class="flex flex-col">
       <Header />
-      <div class="flex flex-1">
+      <div class="flex flex-1 min-h-0">
         <template v-if="!store.activeConnection">
           <div class="flex-1">
             <ConnectionGrid />

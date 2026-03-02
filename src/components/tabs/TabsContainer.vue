@@ -9,7 +9,7 @@ import { computed } from 'vue';
 const tabsStore = useTabsStore();
 
 const currentTabType = computed(() => {
-   return tabsStore.getActiveTab()?.type ?? null;
+   return tabsStore.getActiveTab()?.type ?? TabKind.QUERY;
 })
 
 function setActiveTab(id: string) {
@@ -34,7 +34,7 @@ const components = {
 
 <template>
    <div class="flex h-full flex-col">
-      <div class="flex items-center border-b border-border bg-sidebar">
+      <div class="flex shrink-0 items-center border-b border-border bg-sidebar">
          <div class="flex flex-1 items-center overflow-x-auto">
             <template v-for="[id, tab] in tabsStore.tabs.entries()" :key="id">
                <div :class="cn(
@@ -51,9 +51,9 @@ const components = {
             </template>
          </div>
       </div>
-      <div>
+      <div class="flex-1 min-h-0 overflow-hidden">
          <template v-for="[id] in tabsStore.tabs.entries()" :key="id">
-            <div v-show="tabsStore.activeTab === id">
+            <div v-show="tabsStore.activeTab === id" class="h-full">
                <KeepAlive>
                   <component :is="components[currentTabType]" :key="tabsStore.activeTab ?? ''" />
                </KeepAlive>

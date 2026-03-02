@@ -7,7 +7,7 @@ const store = useConnectionStore();
 </script>
 
 <template>
-   <header class="flex h-(--header-height) items-center justify-between border-b border-border bg-sidebar px-3">
+   <header class="flex h-(--header-height) shrink-0 items-center justify-between border-b border-border bg-sidebar px-3">
       <div class="flex items-center gap-4">
          <Logo />
 
