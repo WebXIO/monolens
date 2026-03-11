@@ -11,7 +11,7 @@ import {
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import ScrollArea from '@/components/ui/scroll-area/ScrollArea.vue';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDomain } from '@/domains';
 import { FindDocumentsResult } from '@/domains/connections/models/findDocumentsResult';
@@ -184,12 +184,11 @@ onUnmounted(() => {
       </div>
 
       <div class="mt-2 shrink-0 border border-b border-primary"></div>
-      <ScrollArea class="flex-1 min-h-0">
-
-         <JSONDocumentsEditor v-if="viewMode === DocumentViewMode.JSON" :documents="result.documents" />
+      <div class="flex-1 min-h-0 overflow-hidden">
+         <ScrollArea v-if="viewMode === DocumentViewMode.JSON" class="h-full">
+            <JSONDocumentsEditor :documents="result.documents" />
+         </ScrollArea>
          <TableDocumentsView v-else :documents="result.documents" :storage-key="tableStorageKey" />
-
-      </ScrollArea>
-
+      </div>
    </div>
 </template>
