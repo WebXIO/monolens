@@ -1,2 +1,2 @@
 pub mod credential_service;
-pub mod hydrate_connection_with_credentials;
+pub mod credential_store;

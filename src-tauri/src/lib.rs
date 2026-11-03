@@ -7,6 +7,7 @@ use crate::{
     },
     connector::repositories::credentials::credential_service::CredentialService
 };
+use std::sync::Arc;
 
 use crate::task_manager::task_manager::TaskManager;
 
@@ -14,6 +15,7 @@ pub mod connection_handler;
 pub mod connector;
 pub mod database;
 pub mod drivers;
+pub mod menu;
 pub mod task_manager;
 
 pub struct AppState {
@@ -28,10 +30,21 @@ pub fn create_app_state(repository: impl ConnectorRepository + 'static) -> AppSt
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    if cfg!(target_os = "macos") {
+        builder = builder.menu(menu::macos_menu::<tauri::Wry>);
+    }
+
+    builder
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(tauri_plugin_log::log::LevelFilter::Debug)
+                // debug output stays in development builds
+                .level(if cfg!(debug_assertions) {
+                    tauri_plugin_log::log::LevelFilter::Debug
+                } else {
+                    tauri_plugin_log::log::LevelFilter::Info
+                })
                 .build(),
         )
         .setup(|app| {
@@ -39,7 +52,7 @@ pub fn run() {
 
             log::debug!("Load config from path {}", path.display());
 
-            let repository = FileRepository::new(path, CredentialService::new("monolens-connections"));
+            let repository = FileRepository::new(path, Arc::new(CredentialService::new("monolens-connections")));
 
             let state = create_app_state(repository);
             app.manage(state);
@@ -50,14 +63,12 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            database::commands::test_connection::test_connection,
             database::commands::start_test_connection::start_test_connection,
             database::commands::start_connect::start_connect,
-            database::commands::get_databases::get_databases,
+            database::commands::disconnect::disconnect,
             database::commands::list_collections::list_collections,
             database::commands::start_find_documents::start_find_documents,
             connector::commands::get_connections::get_connections,
-            connector::commands::get_connection::get_connection,
             connector::commands::get_connection_password::get_connection_password,
             connector::commands::create_connection::create_connection,
             connector::commands::update_connection::update_connection,

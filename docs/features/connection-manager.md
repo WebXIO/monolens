@@ -2,53 +2,58 @@
 
 ## Purpose
 
-A user saves the MongoDB servers they work with as connections: a name, host, port and optional username and password. They can edit and delete them, and pick one to connect to. It is the first screen of the app.
+A user saves the MongoDB servers they work with as connections: by host and port with options, or by a `mongodb://` / `mongodb+srv://` connection string, with an optional username and password. They can edit and delete them, and open one or several of them. It is the first screen of the app.
 
 ## How it works
 
-**The connection**
+**The connection** (`connections.json` version 2)
 
 | Field | Meaning |
 |---|---|
 | `id` | uuid v4, created in Rust when the connection is saved |
-| `name` | Free text |
-| `uri` | The host, e.g. `localhost`. Despite the name it is not a connection string, see the limits |
-| `port` | 1 to 65535, default 27017 |
+| `name` | Free text, required |
 | `connector` | `MongoDb`, the only kind |
-| `connectionType` | Always `Standalone`. The enum also has replica set, sharded cluster and DNS seed list, but no UI offers them |
-| `authentication` | `kind` `NONE` or `BASIC`, `username`, `password`, `database` (the authentication database) |
+| `target` | `{ "kind": "Host", host, port }` or `{ "kind": "Uri", uri }`; a stored connection string never has user info |
+| `authentication` | `kind` `NONE` or `BASIC`, `username`, `password` (never stored, see [credential-storage.md](credential-storage.md)), `database` (the authentication database) |
+| `options` | For host targets only: `tls`, `tlsCaFile`, `tlsAllowInvalidCertificates`, `replicaSet`, `serverSelectionTimeoutSecs` (empty is the driver's default, 30 s; 10 s for the connection test). A connection string carries its own options |
 
 **Where the user manages them**
 
-- `ConnectionGrid` is the start screen while no connection is active. It shows one card per connection with name and `host:port`. Edit and delete appear on hover, and the card has a Connect button, which turns into Cancel while that connection connects. The last card adds a connection.
-- `ConnectionSelector` sits in the header while a connection is active. Its dropdown lists the connections with a check next to the active one, switches to another one and has "Add new connection…". While a connection connects, an X next to it cancels.
+- `ConnectionGrid` is the start screen while no connection is open. It shows one card per connection with name and address (`host:port` or the string). Edit and delete appear on hover. Connect turns into Cancel while that connection connects; the grid gives way once it is connected.
+- The header dropdown "Connections" lists all saved connections, marks the open and connecting ones, opens further connections and has "Add new connection…". See [connect-and-explorer.md](connect-and-explorer.md).
+- The sidebar has an edit button on every open connection.
 - `ConnectionDialog` creates and edits:
-  - Fields: name, host, port, a "Use Authentication" checkbox, and with it username, password (with a show/hide toggle) and auth database (default `admin`). vee-validate with a zod schema checks name, host and port.
-  - Test Connection and Create/Save stay disabled until every field shown is filled, so with authentication the password is required. Save is also disabled while a test runs.
-  - Testing is optional, see [connection-test.md](connection-test.md).
-  - Closing the dialog resets the form and the test state.
-  - In edit mode the dialog loads the stored password from the keyring, see [credential-storage.md](credential-storage.md).
+  - Name, then a switch between "Host and port" and "Connection string".
+  - Host mode: host, port, and collapsible options (TLS with CA file and "allow invalid certificates", replica set, timeout in seconds). The options open by themselves when a connection has any.
+  - Connection string mode: one field. A hint says that a username and password in the string are moved out on save.
+  - "Use Authentication" with username, password (show/hide toggle) and auth database. Empty means `admin` for a host, and the string's `authSource` (else `admin`) for a connection string.
+  - TanStack Form validates the values with a zod schema (`connectionForm.ts`) when the user tests or saves, and shows what is wrong under each field: a missing name or host, a host that is really a connection string, a port outside 1–65535, a timeout outside 1–3600, a string without `mongodb://` or `mongodb+srv://`, missing username or password with authentication.
+  - Testing is optional, see [connection-test.md](connection-test.md). In edit mode the dialog loads the stored password.
 
 **Saving, editing, deleting**
 
-- Create calls `create_connection` with the connection without id (`CreateConnection`). Rust creates the id, moves the password into the keyring and writes the connection without it to the file. The store adds the returned connection, then the grid or the selector reloads the whole list.
-- Edit calls `update_connection(id, connection)`. With `BASIC` and a password, Rust writes the password to the keyring. With `NONE` it deletes the keyring entry. The password is stripped before the file is written. The store replaces the entry in its list with what the form sent.
-- Delete asks with the browser's `confirm()`, then calls `delete_connection`. It removes the entry from the file and the keyring; keyring errors are ignored. If the deleted connection was active, the store clears the active connection and its databases.
+- Before storing, and before a test, Rust checks the connection again (`models/normalize.rs`; it also refuses `host:port` in the host field) and moves credentials out of a connection string: the username into `authentication`, the password into the keyring (`models/uri.rs`). A refusal is `RepositoryError::Invalid`, and the UI shows its text, e.g. "Enter mongodb:// and mongodb+srv:// addresses as a connection string, not as a host."
+- Create calls `create_connection` with the connection without id; Rust creates the id and returns the stored connection, which the store adds.
+- Edit calls `update_connection(id, connection)`. With `BASIC` and a password, Rust writes the password; with `NONE` it deletes it; the file never gets one. The Rust core drops the connected driver of that connection; the store reloads the list and an open connection reconnects with the new settings.
+- Delete asks with the app's confirmation dialog (`useConfirm`), disconnects an open connection (its tabs close), then calls `delete_connection`, which removes file entry, keyring entry and driver.
 
 **Storage**
 
-- `FileRepository` keeps `<app config dir>/connections.json` (on Linux `~/.config/org.monolens/connections.json`) as `{ "version": 1, "connections": { "<id>": { … } } }`.
-- Every call reads the whole file, and every change writes the whole file (pretty JSON). A missing or empty file means no connections.
-- A file with another `version` than `STORAGE_VERSION` (1) fails with `MigrationError`, and the list can't be loaded. There is no migration code yet.
-
-Errors come back as `CommandError` with a user message such as "Failed to load connections." and are shown as toasts.
+- `FileRepository` keeps `<app config dir>/connections.json` (on Linux `~/.config/org.monolens/connections.json`) as `{ "version": 2, "connections": { "<id>": { … } } }`. Every call reads the whole file, every change writes it.
+- A version 1 file (until 2026-11-03: the host in `uri`, plus `port` and an unused `connectionType`) is migrated on the first load (`repositories/migrations.rs`) and kept next to it as `connections.v1.json`. A version 1 `uri` that is a connection string becomes a string target with its password moved to the keyring; a `host:port` loses the port after the host, the port field counted before too.
+- Another version, or no version, is an error.
 
 ## Decisions
 
-- **The id is created in Rust** (`8a9638a`). The UI sends `CreateConnection` without an id, so it can't invent or reuse one.
-- **A versioned map instead of an array** (`84839a6`, issue #24): O(1) access by id, and the version allows migrating the file later.
-- **Passwords are not in the file** (`eb8fdd9`, `84839a6`): they live in the OS keyring, see [credential-storage.md](credential-storage.md).
+- **The id is created in Rust** (`8a9638a`).
+- **A versioned map instead of an array** (`84839a6`, issue #24): O(1) access by id, and a version to migrate the file. Used for the first time with version 2 (`5f6efaa`).
+- **Passwords are not in the file** (`eb8fdd9`, `84839a6`), see [credential-storage.md](credential-storage.md).
 - **Testing is optional** (`963da88`, issue #26).
+- **Host and port with options, or a connection string** (`5f6efaa`, `29aceb2`, issue #4): a string carries all its options, the option fields apply to host targets only. `connectionType` was never read and is gone; the topology comes from the string or the replica set option.
+- **Credentials leave a connection string on save** (`5f6efaa`): no password in `connections.json`, and the stored string can be shown.
+- **The form validates instead of disabling buttons** (`29aceb2`): the user sees what is missing.
+- **TanStack Form with zod 4** (`3c87afd`): `@vee-validate/zod` only supports zod 3, vee-validate 5 has been a beta since 2025. Rejected: vee-validate 5 beta, an adapter of our own for vee-validate 4.
+- **A dialog of the app for deleting** (`29aceb2`) instead of the browser's `confirm()`.
 
 ## Building steps
 
@@ -65,16 +70,19 @@ Errors come back as `CommandError` with a user message such as "Failed to load c
 | 2026-02-20 | Saving no longer requires a test | `963da88` |
 | 2026-02-21 | Cancel a connect from the dropdown, new dialog layout | `571e414`, `c780905` |
 | 2026-02-23 | Errors as toasts | `37819e1` |
+| 2026-11-03 | The dialog on TanStack Form and zod 4 | `3c87afd` |
+| 2026-11-03 | Model version 2 with targets and options, migration of version 1, validation and moving credentials out of strings in Rust | `5f6efaa` |
+| 2026-11-03 | Dialog with both modes and options, form logic in `connectionForm.ts`, confirmation dialog for deleting | `29aceb2` |
+| 2026-11-03 | Several connections at once: the dropdown opens further connections, edit from the sidebar | `afd84c7` |
+| 2026-11-03 | Loaded once at start; reloaded from Rust after an edit | `d5ff9e3` |
+| 2026-11-03 | Review fixes: the auth database stays empty by default (a filled `admin` overrode a string's `authSource`), the edit dialog fills on every opening, `host:port` refused, the test normalizes like saving | `8fe2ca0` |
 
 ## Limits and open points
 
-- **Host and port only.** The driver always builds `mongodb://<host>:<port>/?authSource=<db>`. The host field's placeholder says "localhost or mongodb+srv://...", but SRV and full connection strings don't work: the prefix is added again. TLS, replica set name, timeouts, read preference and other URI options can't be set. Issue #4 asked for a timeout setting and is closed, but no timeout exists.
-- **Connection types are not wired up.** `connectionType` is always `Standalone` and nothing reads it. The TypeScript enum sends `"SharedCluster"` for `ShardedCluster`, which Rust's `ShardedCluster` would not accept.
-- **No storage migration.** The version is checked, but a mismatch is an error.
-- **Edits don't reach a pooled driver.** After a connection was used in this session, a changed host, port or password only takes effect after a restart, see [connect-and-explorer.md](connect-and-explorer.md#limits-and-open-points).
-- Delete uses the browser's `confirm()`, not a dialog of the app.
-- `App.vue` and `ConnectionGrid` both load the connections on mount, so they are loaded twice at start.
-- Dead code: `ConnectionRepositoryIPC` is registered but unused. The `saveConnection`/`saveConnections` wrappers call commands that no longer exist. `get_connection` is wrapped but never called. The Rust commands `test_connection` and `get_databases` are not used by the UI.
+- Authentication is username and password only (MongoDB's default SCRAM). No X.509, LDAP, Kerberos, AWS or OIDC, and no client certificates.
+- The CA file is a typed path; there is no file picker.
+- Options are fields for host targets only. For anything else (read preference, several hosts, …) use a connection string.
+- `mongodb+srv://` resolves DNS records when connecting; it was not tested against a real srv cluster.
 - Open issues: #40 quick connections in the dropdown (at most 5, "Browse more", edit and delete there), #45 stage types (Develop, Demo, Production, with a confirmation before changing production data), #28 start an in-memory MongoDB.
 
 ## Where the code is
@@ -82,8 +90,8 @@ Errors come back as `CommandError` with a user message such as "Failed to load c
 | What | Path |
 |---|---|
 | Commands | `src-tauri/src/connector/commands/` |
-| Models | `src-tauri/src/connector/models/`, `src/domains/connections/models/` |
-| Storage | `src-tauri/src/connector/repositories/file_repository.rs`, `storage_wrapper.rs` |
+| Models, checks, connection strings | `src-tauri/src/connector/models/` (`connection.rs`, `options.rs`, `normalize.rs`, `uri.rs`), `src/domains/connections/models/` |
+| Storage and migration | `src-tauri/src/connector/repositories/file_repository.rs`, `migrations.rs`, `storage_wrapper.rs` |
 | IPC wrapper | `src/domains/connections/services/ConnectionServiceIPC.ts` |
 | Store | `src/stores/connectionStore.ts` |
-| UI | `src/components/connection/ConnectionGrid.vue`, `ConnectionDialog.vue`, `ConnectionSelector.vue` |
+| UI | `src/components/connection/ConnectionGrid.vue`, `ConnectionDialog.vue`, `connectionForm.ts`, `ConnectionSelector.vue`, `src/components/ConfirmDialog.vue`, `src/composables/useConfirm.ts` |

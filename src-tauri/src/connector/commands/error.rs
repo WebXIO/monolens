@@ -22,6 +22,16 @@ impl CommandError {
     }
 }
 
+impl CommandError {
+    /// A connection that fails validation tells the user why; other failures get `user_message`.
+    pub fn from_repository(err: RepositoryError, user_message: &str) -> Self {
+        match err {
+            RepositoryError::Invalid(message) => CommandError::new(message.clone(), "invalid", message),
+            other => CommandError::new(other.to_string(), "repository", user_message),
+        }
+    }
+}
+
 impl From<std::io::Error> for CommandError {
     fn from(err: std::io::Error) -> Self {
         CommandError {
@@ -57,6 +67,9 @@ pub enum RepositoryError {
     #[error("Connection not found: {0}")]
     NotFound(String),
 
+    #[error("{0}")]
+    Invalid(String),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -72,6 +85,9 @@ pub enum RepositoryError {
 
 #[derive(Debug, Error)]
 pub enum CredentialError {
+    #[error("No password stored for connection {0}")]
+    NotFound(String),
+
     #[error("Keyring error: {0}")]
     Keyring(#[from] keyring::Error),
 

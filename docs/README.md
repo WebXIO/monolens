@@ -2,7 +2,7 @@
 
 How to install and run Monolens is in the root [README.md](../README.md). This folder explains how it is built and why it is built that way.
 
-The documentation was written on 2026-11-03 from `develop` (`859c252`), the commit history, the pull requests and the issues on GitHub, when the project was picked up again after a break since March 2026.
+The documentation was written on 2026-11-03 from `develop` (`859c252`), the commit history, the pull requests and the issues on GitHub, when the project was picked up again after a break since March 2026. The same day the working-state round ([plans/implemented/working-state.md](plans/implemented/working-state.md)) fixed the bugs found and completed querying; the files describe the state after it.
 
 | Where | What you find there |
 |---|---|
@@ -16,14 +16,14 @@ The documentation was written on 2026-11-03 from `develop` (`859c252`), the comm
 
 | File | Feature |
 |---|---|
-| [connection-manager.md](features/connection-manager.md) | Saved connections: create, edit, delete, the start screen, the header dropdown, `connections.json` |
+| [connection-manager.md](features/connection-manager.md) | Saved connections by host and port with options or by connection string: create, edit, delete, `connections.json` and its migration |
 | [credential-storage.md](features/credential-storage.md) | Passwords in the OS keyring, loaded in Rust only when connecting |
-| [connection-test.md](features/connection-test.md) | The staged connection test with live progress |
-| [connect-and-explorer.md](features/connect-and-explorer.md) | Connecting, the driver pool, the sidebar with databases and collections |
+| [connection-test.md](features/connection-test.md) | The staged connection test with live progress, skipped stages and the server version |
+| [connect-and-explorer.md](features/connect-and-explorer.md) | Several connections at once, the driver pool, the sidebar with databases and collections |
 | [background-tasks.md](features/background-tasks.md) | Cancellable tasks in Rust and `abortableInvoke` in the UI |
 | [error-handling.md](features/error-handling.md) | `kind`, `message`, `user_message`, and the toasts |
-| [tabs.md](features/tabs.md) | One tab per collection, tab history, kept-alive views |
-| [query-tab.md](features/query-tab.md) | Shell-style filter with autocomplete, the query parser, find and count in Rust |
+| [tabs.md](features/tabs.md) | One tab per collection and connection, tab history, one kept view per tab |
+| [query-tab.md](features/query-tab.md) | Filter, sort and projection in shell syntax, paging with the total, the query parser, find and count in Rust |
 | [document-views.md](features/document-views.md) | The virtualized table and the JSON view of the results |
 | [shortcuts.md](features/shortcuts.md) | The command registry and the key bindings |
 | [logging.md](features/logging.md) | One log for Rust and the web view |
@@ -39,7 +39,6 @@ Monolens reads. Writing data, indexes, aggregation, import, export and statistic
 | Querying | #11 query builder, #41 queries by drag and drop, #13 export a query as code |
 | Connections | #40 quick connections, #45 stage types with a guard for production, #28 in-memory MongoDB |
 | Display | #39 table enhancements (nested objects, text size) |
-| Bugs | #42 `Ctrl+Enter` runs in every tab |
 | Other | #14 database statistics, #18 log file and rotation, #31 i18n |
 
 The tab kinds `INDEXES`, `AGGREGATION`, `EXPORTER`, `IMPORTER` and `STATISTICS` already exist in the code as placeholders.

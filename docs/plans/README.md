@@ -13,3 +13,4 @@ A plan names the GitHub issues it covers.
 
 | Plan | Built | Now described in |
 |---|---|---|
+| [working-state.md](implemented/working-state.md) | 2026-11-03: the bugs of the documentation fixed, several connections at once, connection strings with options, paging, count, sort and projection; plus a full package update | [connection-manager.md](../features/connection-manager.md), [connect-and-explorer.md](../features/connect-and-explorer.md), [query-tab.md](../features/query-tab.md) and the other feature files |

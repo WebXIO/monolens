@@ -25,7 +25,7 @@ test("Test function calll parser", () => {
     { type: "COLON" },
     { type: "IDENT", value: "ObjectId" },
     { type: "LPAREN" },
-    { type: "STRING", value: "..." },
+    { type: "STRING", value: "507f1f77bcf86cd799439011" },
     { type: "RPAREN" },
     { type: "RBRACE" },
     { type: "EOF" },
@@ -33,7 +33,7 @@ test("Test function calll parser", () => {
 
   expect(parser.parseValue()).toMatchObject({
     _id: {
-      $oid: "...",
+      $oid: "507f1f77bcf86cd799439011",
     },
   });
 });

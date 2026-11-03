@@ -22,13 +22,16 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-mongodb = "3.5.0"
-futures = "0.3.31"
-uuid = "1.20.0"
-tokio = { version = "1.49.0", features = ["fs"] }
-async-trait = "0.1"
-thiserror = "2.0.18"
-log = "0.4.29"
+mongodb = "3.9.1"
+futures = "0.3.34"
+uuid = "1.29.0"
+tokio = { version = "1.54.1", features = ["fs"] }
+async-trait = "0.1.92"
+thiserror = "2.0.21"
+log = "0.4.35"
 tauri-plugin-log = "2"
-url = "2.5.8"
-keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "vendored" ] }
+percent-encoding = "2.3.2"
+keyring = "4.2.0"
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }

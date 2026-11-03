@@ -18,9 +18,13 @@ Licensed under the [Apache-2.0 License](https://www.apache.org/licenses/LICENSE-
 
 Currently supported features include:  
 
-- **Database Connections** — create, save, edit, and delete MongoDB connections  
-- **Credential Handling** — secure storage of credentials using the OS-native keyring  
-- **Extensible Architecture** — designed to easily add new features, such as data querying, visualization, and advanced operations  
+- **Database Connections** — create, save, edit, and delete MongoDB connections, by host and port (with TLS, replica set and timeout options) or by `mongodb://` / `mongodb+srv://` connection string  
+- **Credential Handling** — passwords in the OS-native keyring, never in the connection file  
+- **Connection Test** — a staged check of reachability, authentication and server version  
+- **Several Connections at Once** — browse databases and collections of every open connection side by side  
+- **Querying** — filter, sort and projection in MongoDB shell syntax with autocomplete, paging with the total count  
+- **Table and JSON Views** — a virtualized table with sortable, movable, resizable columns, or formatted JSON  
+- **Extensible Architecture** — designed to easily add new features, such as editing data, aggregation, and import/export  
 
 But there are many more to come!
 

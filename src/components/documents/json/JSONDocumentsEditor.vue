@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { basicSetup, EditorView } from 'codemirror';
-import { ChevronDown, ChevronRight } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight } from '@lucide/vue';
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { JsonDocument } from '../models/types';
 
@@ -122,7 +122,6 @@ function getDocumentTitle(document: JsonDocument, index: number): string {
 watch(
    () => props.documents,
    (documents) => {
-      if(!editors.keys()) return;
       expandedIndexes.value = new Set(documents.map((_, index) => index));
 
       for (const index of Array.from(editors.keys())) {

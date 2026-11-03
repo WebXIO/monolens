@@ -1,24 +1,20 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { Database, Plus, Pencil, Trash2, Loader2 } from 'lucide-vue-next';
+import { ref } from 'vue';
+import { Database, Plus, Pencil, Trash2, Loader2 } from '@lucide/vue';
 import Button from '@/components/ui/button/Button.vue';
 import ConnectionDialog from './ConnectionDialog.vue';
 import { useConnectionStore } from '@/stores/connectionStore';
-import type { Connection } from '@/domains/connections';
+import { describeTarget, type Connection } from '@/domains/connections';
 import { useLogger } from '@/composables/useLogger';
+import { useConfirm } from '@/composables/useConfirm';
 
 const logger = useLogger("ConnectionGrid");
 const store = useConnectionStore();
+const { confirm } = useConfirm();
 
 const dialogOpen = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
 const editingConnection = ref<Connection | undefined>();
-
-const connectingId = ref<string | null>(null);
-
-onMounted(() => {
-  store.loadConnections();
-});
 
 function openCreateDialog() {
   logger.debug('openCreateDialog called');
@@ -35,25 +31,25 @@ function openEditDialog(connection: Connection) {
 }
 
 async function handleConnect(connection: Connection) {
-  connectingId.value = connection.id;
   await store.connectTo(connection);
-  connectingId.value = null;
 }
 
-function handleCancelConnect() {
-  store.cancelConnect();
-  connectingId.value = null;
+function handleCancelConnect(connection: Connection) {
+  store.cancelConnect(connection.id);
 }
 
 async function handleDelete(connection: Connection) {
-  if (confirm(`Delete connection "${connection.name}"?`)) {
+  const confirmed = await confirm({
+    title: `Delete "${connection.name}"?`,
+    description: 'The connection and its saved password are removed from this computer.',
+    confirmLabel: 'Delete',
+    destructive: true,
+  });
+  if (confirmed) {
     await store.deleteConnection(connection.id);
   }
 }
 
-function handleSaved(_connection: Connection) {
-  store.loadConnections();
-}
 </script>
 <template>
   <div class="flex flex-col items-center justify-center min-h-[60vh] p-8">
@@ -80,7 +76,7 @@ function handleSaved(_connection: Connection) {
           <div class="flex-1 min-w-0">
             <h3 class="font-medium truncate">{{ connection.name }}</h3>
             <p class="text-sm text-muted-foreground truncate">
-              {{ connection.uri }}:{{ connection.port }}
+              {{ describeTarget(connection.target) }}
             </p>
           </div>
           
@@ -105,10 +101,10 @@ function handleSaved(_connection: Connection) {
         </div>
         
         <Button 
-          v-if="connectingId === connection.id"
+          v-if="store.isConnecting(connection.id)"
           class="w-full mt-3 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50 transition-colors"
           variant="outline"
-          @click.stop="handleCancelConnect"
+          @click.stop="handleCancelConnect(connection)"
         >
           <Loader2 class="w-4 h-4 mr-2 animate-spin" />
           Cancel
@@ -116,7 +112,7 @@ function handleSaved(_connection: Connection) {
         <Button 
           v-else
           class="w-full mt-3 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-colors"
-          :disabled="connectingId !== null"
+          :disabled="Object.values(store.sessions).some((session) => session.status === 'connecting')"
           @click="handleConnect(connection)"
         >
           Connect
@@ -136,7 +132,6 @@ function handleSaved(_connection: Connection) {
       v-model:open="dialogOpen"
       :mode="dialogMode"
       :connection="editingConnection"
-      @saved="handleSaved"
     />
   </div>
 </template>

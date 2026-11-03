@@ -56,7 +56,7 @@ export class CommandRegistry {
 
     if (!subs?.length) return;
 
-    const idx = subs.findIndex(subscriber);
+    const idx = subs.indexOf(subscriber);
 
     if (idx === -1) return;
 

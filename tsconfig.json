@@ -22,7 +22,6 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Shadcn/vue */
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }

@@ -13,7 +13,7 @@ const store = useConnectionStore();
 
          <div class="h-5 w-px bg-border"></div>
 
-         <ConnectionSelector v-if="store.activeConnection" />
+         <ConnectionSelector v-if="store.hasOpenConnections" />
       </div>
    </header>
 </template>

@@ -1,16 +1,13 @@
 <script setup lang="ts">
 import { useTabsStore } from '@/stores/tabsStore';
+import { useConnectionStore } from '@/stores/connectionStore';
 import { cn } from '@/lib/utils';
-import { CircleX } from 'lucide-vue-next';
+import { CircleX } from '@lucide/vue';
 import { TabKind } from '@/domains/tabs';
 import TabViewQuery from './views/TabViewQuery.vue';
-import { computed } from 'vue';
 
 const tabsStore = useTabsStore();
-
-const currentTabType = computed(() => {
-   return tabsStore.getActiveTab()?.type ?? TabKind.QUERY;
-})
+const connectionStore = useConnectionStore();
 
 function setActiveTab(id: string) {
    tabsStore.switchTab(id);
@@ -21,6 +18,11 @@ function deleteTab(id: string, event?: MouseEvent) {
    event?.stopPropagation(); // prevent propagation so that the switch event is not called after deletion
 }
 
+function connectionName(connectionId: string) {
+   return connectionStore.getConnection(connectionId)?.name ?? '';
+}
+
+// only query tabs are built so far; the other kinds fall back to it
 const components = {
    [TabKind.QUERY]: TabViewQuery,
    [TabKind.INDEXES]: TabViewQuery,
@@ -38,13 +40,16 @@ const components = {
          <div class="flex flex-1 items-center overflow-x-auto">
             <template v-for="[id, tab] in tabsStore.tabs.entries()" :key="id">
                <div :class="cn(
-                  'group flex cursor-pointer items-center gap-2 border-b-2 px-4 py-2 text-sm transition-colors',
-                  tabsStore.getActiveTab()?.id === tab.id
+                  'group flex cursor-pointer items-center gap-2 border-b-2 px-4 py-1.5 text-sm transition-colors',
+                  tabsStore.activeTab === id
                      ? 'border-primary bg-card text-foreground'
                      : 'border-transparent text-muted-foreground hover:text-foreground'
-               )" @click="setActiveTab(id)">
-                  <span>{{ tab.context.collection }}</span>
-                  <span @click="deleteTab(id, $event)">
+               )" :title="`${connectionName(tab.context.connectionId)} · ${tab.context.database}.${tab.context.collection}`" @click="setActiveTab(id)">
+                  <span class="flex flex-col leading-tight">
+                     <span>{{ tab.context.collection }}</span>
+                     <span class="text-[11px] text-muted-foreground">{{ connectionName(tab.context.connectionId) }} · {{ tab.context.database }}</span>
+                  </span>
+                  <span aria-label="Close tab" @click="deleteTab(id, $event)">
                      <CircleX :size="15" class="hover:text-orange-500" />
                   </span>
                </div>
@@ -52,14 +57,12 @@ const components = {
          </div>
       </div>
       <div class="flex-1 min-h-0 overflow-hidden">
-         <template v-for="[id] in tabsStore.tabs.entries()" :key="id">
+         <!-- one view per tab, kept while hidden so it keeps its query and results -->
+         <template v-for="[id, tab] in tabsStore.tabs.entries()" :key="id">
             <div v-show="tabsStore.activeTab === id" class="h-full">
-               <KeepAlive>
-                  <component :is="components[currentTabType]" :key="tabsStore.activeTab ?? ''" />
-               </KeepAlive>
+               <component :is="components[tab.type]" :tab-id="id" />
             </div>
          </template>
-
       </div>
    </div>
 </template>

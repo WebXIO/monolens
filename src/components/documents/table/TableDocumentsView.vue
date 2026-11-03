@@ -2,7 +2,7 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { FlexRender } from '@tanstack/vue-table';
 import { useVirtualizer } from '@tanstack/vue-virtual';
-import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical } from 'lucide-vue-next';
+import { ArrowDown, ArrowUp, ArrowUpDown, GripVertical } from '@lucide/vue';
 import { computed, ref, toRef } from 'vue';
 import { JsonDocument } from '../models/types';
 import { useDocumentTable } from '@/composables/table/useDocumentTable';
@@ -86,7 +86,7 @@ function truncate(text: string): string {
                      @dragstart="onDragStart($event, header.column.id)"
                   >
                      <GripVertical class="h-3 w-3 shrink-0 cursor-grab opacity-30 hover:opacity-70" />
-                     <FlexRender :render="header.column.columnDef.header" :props="header.getContext()" />
+                     <FlexRender :header="header" />
                      <ArrowUp v-if="header.column.getIsSorted() === 'asc'" class="h-3 w-3" />
                      <ArrowDown v-else-if="header.column.getIsSorted() === 'desc'" class="h-3 w-3" />
                      <ArrowUpDown v-else class="h-3 w-3 opacity-30" />

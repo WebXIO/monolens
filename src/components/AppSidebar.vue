@@ -1,63 +1,71 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { SidebarProps, SidebarContent, SidebarGroup, Sidebar } from './ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from "@/components/ui/button"
-import { ChevronDown, Database, RefreshCcw, Loader2, ChevronUp, FileJson, LogOut } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight, Database, FileJson, Loader2, LogOut, Pencil, RefreshCcw, Server, X } from '@lucide/vue';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import ConnectionDialog from '@/components/connection/ConnectionDialog.vue';
 import { useConnectionStore } from '@/stores/connectionStore';
-import { invoke } from '@tauri-apps/api/core';
-import { tryCatch } from '@/utils/result';
-import { useLogger } from '@/composables/useLogger';
 import { useTabsStore } from '@/stores/tabsStore';
 import { Context } from '@/domains/context';
 import { TabKind } from '@/domains/tabs';
+import type { Connection } from '@/domains/connections';
 
 const props = defineProps<SidebarProps>()
 
-const logger = useLogger("AppSidebar");
 const store = useConnectionStore();
 const tabsStore = useTabsStore();
 
-const toggledDatabases = ref<Set<string>>(new Set());
-const collections = ref<Record<string, string[]>>({});
+// connections are open by default, databases closed
+const collapsedConnections = ref<Set<string>>(new Set());
+const expandedDatabases = ref<Set<string>>(new Set());
 
-async function toggleDatabase(dbName: string) {
-   if (!store.activeConnection) return;
+const editOpen = ref(false);
+const editingConnection = ref<Connection | undefined>();
 
-   if (toggledDatabases.value.has(dbName)) {
-      toggledDatabases.value.delete(dbName);
-      return;
-   }
-
-   if (collections.value[dbName]) {
-      toggledDatabases.value.add(dbName);
-      return;
-   }
-
-   const { data, error } = await tryCatch<string[]>(invoke('list_collections', { connection: store.activeConnection, databaseName: dbName }))
-
-   if (data) {
-      collections.value[dbName] = data;
-      toggledDatabases.value.add(dbName);
-   }
-   else
-      logger.error(error)
-
+function databaseKey(connectionId: string, database: string) {
+   return `${connectionId}/${database}`;
 }
 
-function isDatabaseExpended(name: string) {
-   return toggledDatabases.value.has(name);
+function toggleConnection(connectionId: string) {
+   const next = new Set(collapsedConnections.value);
+   if (next.has(connectionId)) next.delete(connectionId);
+   else next.add(connectionId);
+   collapsedConnections.value = next;
 }
 
-function handleCollectionSelect(database: string, collection: string) {
-   if(!store.activeConnection) return;
+function isDatabaseExpanded(connectionId: string, database: string) {
+   return expandedDatabases.value.has(databaseKey(connectionId, database));
+}
 
-   const context: Context = {
-      collection: collection,
-      database: database,
-      connection: store.activeConnection
+async function expandDatabase(connectionId: string, database: string) {
+   const collections = await store.listCollections(connectionId, database);
+   if (!collections) return;
+   expandedDatabases.value = new Set(expandedDatabases.value).add(databaseKey(connectionId, database));
+}
+
+async function toggleDatabase(connectionId: string, database: string) {
+   if (isDatabaseExpanded(connectionId, database)) {
+      const next = new Set(expandedDatabases.value);
+      next.delete(databaseKey(connectionId, database));
+      expandedDatabases.value = next;
+      return;
    }
+   await expandDatabase(connectionId, database);
+}
+
+function collectionsOf(connectionId: string, database: string): string[] {
+   return store.sessionOf(connectionId)?.collections[database] ?? [];
+}
+
+function forgetExpanded(connectionId: string) {
+   const prefix = `${connectionId}/`;
+   expandedDatabases.value = new Set([...expandedDatabases.value].filter((key) => !key.startsWith(prefix)));
+}
+
+function handleCollectionSelect(connectionId: string, database: string, collection: string) {
+   const context: Context = { connectionId, database, collection };
 
    let tabId = tabsStore.hasContext(context, TabKind.QUERY);
 
@@ -68,41 +76,39 @@ function handleCollectionSelect(database: string, collection: string) {
    tabsStore.switchTab(tabId);
 }
 
-async function refreshDatabases() {
-   if (store.activeConnection) {
-      await store.connectTo(store.activeConnection);
-   }
+async function refresh(connectionId: string) {
+   // collections are listed again when a database is opened
+   if (await store.refresh(connectionId)) forgetExpanded(connectionId);
 }
 
-function disconnect() {
-   store.disconnect();
-   toggledDatabases.value.clear();
-   collections.value = {};
+function openEdit(connection: Connection) {
+   editingConnection.value = connection;
+   editOpen.value = true;
+}
+
+function disconnect(connectionId: string) {
+   forgetExpanded(connectionId);
+   store.disconnect(connectionId);
 }
 
 const activeTabContext = computed(() => tabsStore.getActiveTab()?.context ?? null);
 
-function isCollectionActive(database: string, collection: string): boolean {
-   if (!activeTabContext.value || !store.activeConnection) return false;
-   return (
-      activeTabContext.value.database === database &&
-      activeTabContext.value.collection === collection &&
-      activeTabContext.value.connection.id === store.activeConnection.id
-   );
+function isCollectionActive(connectionId: string, database: string, collection: string): boolean {
+   const context = activeTabContext.value;
+   return context !== null
+      && context.connectionId === connectionId
+      && context.database === database
+      && context.collection === collection;
 }
 
+// show the active tab's collection in the tree
 watch(
-   () => tabsStore.activeTab,
-   async (newActiveTabId) => {
-      if (!newActiveTabId || !store.activeConnection) return;
-
-      const activeTab = tabsStore.getActiveTab();
-      if (!activeTab) return;
-
-      const { database } = activeTab.context;
-
-      if (!toggledDatabases.value.has(database)) {
-         await toggleDatabase(database);
+   activeTabContext,
+   async (context) => {
+      if (!context) return;
+      if (collapsedConnections.value.has(context.connectionId)) toggleConnection(context.connectionId);
+      if (!isDatabaseExpanded(context.connectionId, context.database)) {
+         await expandDatabase(context.connectionId, context.database);
       }
    }
 );
@@ -111,84 +117,107 @@ watch(
 <template>
    <Sidebar class="top-(--header-height) h-[calc(100svh-var(--header-height))]!" v-bind="props">
       <SidebarContent>
-         <SidebarGroup class="flex flex-row item-center items-center-safe justify-between border-b border-border">
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+         <SidebarGroup class="flex flex-row items-center justify-between border-b border-border">
+            <span class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                Explorer
             </span>
-            <div class="flex gap-0.5">
-               <TooltipProvider>
-                  <Tooltip>
-                     <TooltipTrigger as-child>
-                        <Button variant="ghost" size="icon" class="h-6 w-6" :disabled="store.isDatabasesLoading"
-                           @click="refreshDatabases">
-                           <Loader2 v-if="store.isDatabasesLoading" class="h-3.5 w-3.5 animate-spin" />
-                           <RefreshCcw v-else class="h-3.5 w-3.5" />
-                        </Button>
-                     </TooltipTrigger>
-                     <TooltipContent side="bottom" class="text-xs">
-                        Refresh
-                     </TooltipContent>
-                  </Tooltip>
-               </TooltipProvider>
-               <TooltipProvider>
-                  <Tooltip>
-                     <TooltipTrigger as-child>
-                        <Button
-                           variant="ghost"
-                           size="icon"
-                           class="h-6 w-6 hover:bg-red-600 hover:text-white"
-                           :disabled="store.isDatabasesLoading"
-                           @click="disconnect"
-                        >
-                           <Loader2 v-if="store.isDatabasesLoading" class="h-3.5 w-3.5 animate-spin" />
-                           <LogOut v-else class="h-3.5 w-3.5" />
-                        </Button>
-                     </TooltipTrigger>
-                     <TooltipContent side="bottom" class="text-xs">
-                        Disconnect from Database
-                     </TooltipContent>
-                  </Tooltip>
-               </TooltipProvider>
-            </div>
          </SidebarGroup>
          <SidebarGroup>
             <ScrollArea class="flex-1">
-               <div v-if="store.isDatabasesLoading" class="flex items-center gap-2 px-2 py-4 text-sm text-muted-foreground">
-                  <Loader2 class="h-4 w-4 animate-spin" />
-                  <span>Loading databases...</span>
-               </div>
-
-               <div v-else-if="store.databases.length === 0" class="px-2 py-4 text-sm text-muted-foreground">
-                  No databases found
-               </div>
-
-               <div v-else v-for="database in store.databases" :key="database">
-                  <div
-                     class="group flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
-                     @click="toggleDatabase(database)">
-                     <Button variant="ghost" size="icon" class="h-4 w-4 hover:bg-transparent">
-                        <ChevronDown v-if="!isDatabaseExpended(database)" />
-                        <ChevronUp v-else />
-                     </Button>
-                     <Database class="h-4 w-4" />
-                     <span>{{ database }}</span>
-                  </div>
-                  <template v-if="isDatabaseExpended(database)">
-                     <div v-for="collection in collections[database]" class="ps-8">
-
-                        <div
-                        class="group flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
-                        :class="{ 'bg-primary/15 text-primary font-medium': isCollectionActive(database, collection) }"
-                        @click="handleCollectionSelect(database, collection)"
+               <TooltipProvider :delay-duration="300">
+                  <div v-for="connection in store.openConnections" :key="connection.id" class="mb-1">
+                     <div class="group flex items-center gap-1 rounded-md px-1 py-1 text-sm hover:bg-secondary">
+                        <button
+                           class="flex min-w-0 flex-1 items-center gap-1 text-left font-medium"
+                           :aria-expanded="!collapsedConnections.has(connection.id)"
+                           @click="toggleConnection(connection.id)"
                         >
-                        <FileJson class="h-4 w-4" />
-                        <span>{{ collection }}</span>
+                           <ChevronRight v-if="collapsedConnections.has(connection.id)" class="h-4 w-4 shrink-0" />
+                           <ChevronDown v-else class="h-4 w-4 shrink-0" />
+                           <Loader2 v-if="store.isConnecting(connection.id) || store.sessionOf(connection.id)?.refreshing" class="h-4 w-4 shrink-0 animate-spin" />
+                           <Server v-else class="h-4 w-4 shrink-0 text-primary" />
+                           <span class="truncate">{{ connection.name }}</span>
+                        </button>
+
+                        <template v-if="store.isConnecting(connection.id)">
+                           <Tooltip>
+                              <TooltipTrigger as-child>
+                                 <Button variant="ghost" size="icon" class="h-6 w-6 hover:bg-destructive/10 hover:text-destructive" aria-label="Cancel connecting" @click="store.cancelConnect(connection.id)">
+                                    <X class="h-3.5 w-3.5" />
+                                 </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" class="text-xs">Cancel connecting</TooltipContent>
+                           </Tooltip>
+                        </template>
+                        <div v-else class="flex gap-0.5 opacity-60 group-hover:opacity-100">
+                           <Tooltip>
+                              <TooltipTrigger as-child>
+                                 <Button variant="ghost" size="icon" class="h-6 w-6" aria-label="Refresh" :disabled="store.sessionOf(connection.id)?.refreshing" @click="refresh(connection.id)">
+                                    <RefreshCcw class="h-3.5 w-3.5" />
+                                 </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" class="text-xs">Refresh</TooltipContent>
+                           </Tooltip>
+                           <Tooltip>
+                              <TooltipTrigger as-child>
+                                 <Button variant="ghost" size="icon" class="h-6 w-6" aria-label="Edit connection" @click="openEdit(connection)">
+                                    <Pencil class="h-3.5 w-3.5" />
+                                 </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" class="text-xs">Edit connection</TooltipContent>
+                           </Tooltip>
+                           <Tooltip>
+                              <TooltipTrigger as-child>
+                                 <Button variant="ghost" size="icon" class="h-6 w-6 hover:bg-red-600 hover:text-white" aria-label="Disconnect" @click="disconnect(connection.id)">
+                                    <LogOut class="h-3.5 w-3.5" />
+                                 </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" class="text-xs">Disconnect (closes its tabs)</TooltipContent>
+                           </Tooltip>
+                        </div>
                      </div>
+
+                     <template v-if="!collapsedConnections.has(connection.id) && store.isConnected(connection.id)">
+                        <div
+                           v-if="store.sessionOf(connection.id)?.databases.length === 0"
+                           class="py-1 ps-7 text-sm text-muted-foreground"
+                        >
+                           No databases found
+                        </div>
+                        <div v-for="database in store.sessionOf(connection.id)?.databases ?? []" :key="database" class="ps-3">
+                           <div
+                              class="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
+                              @click="toggleDatabase(connection.id, database)"
+                           >
+                              <ChevronDown v-if="isDatabaseExpanded(connection.id, database)" class="h-4 w-4 shrink-0" />
+                              <ChevronRight v-else class="h-4 w-4 shrink-0" />
+                              <Database class="h-4 w-4 shrink-0" />
+                              <span class="truncate">{{ database }}</span>
+                           </div>
+                           <template v-if="isDatabaseExpanded(connection.id, database)">
+                              <div
+                                 v-for="collection in collectionsOf(connection.id, database)"
+                                 :key="collection"
+                                 class="ms-5 flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
+                                 :class="{ 'bg-primary/15 text-primary font-medium': isCollectionActive(connection.id, database, collection) }"
+                                 @click="handleCollectionSelect(connection.id, database, collection)"
+                              >
+                                 <FileJson class="h-4 w-4 shrink-0" />
+                                 <span class="truncate">{{ collection }}</span>
+                              </div>
+                           </template>
+                        </div>
+                     </template>
                   </div>
-                  </template>
-               </div>
+               </TooltipProvider>
             </ScrollArea>
          </SidebarGroup>
       </SidebarContent>
    </Sidebar>
+
+   <ConnectionDialog
+      v-model:open="editOpen"
+      mode="edit"
+      :connection="editingConnection"
+   />
 </template>

@@ -13,8 +13,11 @@ export function initCommands(
 
   commandRegistry.registerCommand({
     id: Commands.CONNECTION_DISCONNECT,
-    name: "Disconnect from current connection",
-    execute: () => deps.connectionStore.disconnect(),
+    name: "Disconnect the connection of the active tab",
+    execute: () => {
+      const connectionId = deps.tabsStore.getActiveTab()?.context.connectionId;
+      if (connectionId) deps.connectionStore.disconnect(connectionId);
+    },
   });
 
   commandRegistry.registerCommand({

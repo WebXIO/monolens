@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 
-use crate::connector::{ models::connection::Connection};
+use crate::connector::models::connection::Connection;
 
-pub const STORAGE_VERSION: u32 = 1;
+/// 1: `uri` held the host, plus `port` and `connectionType`. 2: `target` and `options`.
+pub const STORAGE_VERSION: u32 = 2;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ConnectionStorage {
@@ -17,5 +18,11 @@ impl ConnectionStorage {
             version: STORAGE_VERSION,
             connections: HashMap::new(),
         }
+    }
+}
+
+impl Default for ConnectionStorage {
+    fn default() -> Self {
+        Self::new()
     }
 }

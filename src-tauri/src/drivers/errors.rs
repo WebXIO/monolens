@@ -28,8 +28,23 @@ pub enum DriverError {
     #[error("Unknown driver type")]
     UnknownDriver,
 
-    #[error("Failed to find documents")]
-    FindDocumentsFailed,
+    #[error("Failed to find documents: {0}")]
+    FindDocumentsFailed(String),
+
+    #[error("Invalid query: {0}")]
+    InvalidQuery(String),
+
+    #[error("Invalid connection: {0}")]
+    InvalidConnection(String),
+
+    #[error("Connection not found: {0}")]
+    ConnectionNotFound(String),
+
+    #[error("Could not read the saved connections: {0}")]
+    StorageFailed(String),
+
+    #[error("Could not read the password from the keyring: {0}")]
+    CredentialsUnavailable(String),
 }
 
 impl DriverError {
@@ -80,7 +95,24 @@ impl DriverError {
                 String::from("The connection URI is invalid. Please check the format.")
             }
             DriverError::UnknownDriver => String::from("Unsupported database driver."),
-            DriverError::FindDocumentsFailed => String::from("Failed to find documents. Check your permissions on this database.")
+            DriverError::FindDocumentsFailed(msg) => {
+                if Self::is_auth_error(msg) || msg.to_lowercase().contains("not authorized") {
+                    String::from("Not allowed to read this collection. Check your permissions on this database.")
+                } else {
+                    // the server's message names the mistake in the query
+                    format!("The query failed: {msg}")
+                }
+            }
+            DriverError::InvalidQuery(msg) | DriverError::InvalidConnection(msg) => msg.clone(),
+            DriverError::ConnectionNotFound(_) => {
+                String::from("This connection no longer exists.")
+            }
+            DriverError::StorageFailed(_) => {
+                String::from("Could not read the saved connections.")
+            }
+            DriverError::CredentialsUnavailable(_) => {
+                String::from("The password of this connection could not be read from the system keyring. Edit the connection and enter it again.")
+            }
         }
     }
 
@@ -113,7 +145,12 @@ impl DriverError {
             DriverError::ServerStatusFailed(_) => "ServerStatusFailed",
             DriverError::UriMalformed(_) => "UriMalformed",
             DriverError::UnknownDriver => "UnknownDriver",
-            DriverError::FindDocumentsFailed => "FindDocumentsFailed",
+            DriverError::FindDocumentsFailed(_) => "FindDocumentsFailed",
+            DriverError::InvalidQuery(_) => "InvalidQuery",
+            DriverError::InvalidConnection(_) => "InvalidConnection",
+            DriverError::ConnectionNotFound(_) => "ConnectionNotFound",
+            DriverError::StorageFailed(_) => "StorageFailed",
+            DriverError::CredentialsUnavailable(_) => "CredentialsUnavailable",
         }
     }
 }
@@ -128,5 +165,61 @@ impl Serialize for DriverError {
         state.serialize_field("message", &self.to_string())?;
         state.serialize_field("user_message", &self.user_message())?;
         state.end()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recognises_authentication_failures_in_driver_messages() {
+        for err in [
+            DriverError::ConnectionFailed("SCRAM failure: Authentication failed.".into()),
+            DriverError::PingFailed("Command failed: Unauthorized".into()),
+            DriverError::ListDatabasesFailed("AuthError: bad auth".into()),
+            DriverError::ServerStatusFailed("authentication failed".into()),
+        ] {
+            assert!(err.user_message().starts_with("Authentication failed"), "{err:?}");
+        }
+    }
+
+    #[test]
+    fn recognises_timeouts_when_pinging() {
+        let err = DriverError::PingFailed("Server selection timeout: No available servers".into());
+        assert!(err.user_message().starts_with("Connection timed out"));
+    }
+
+    #[test]
+    fn falls_back_to_a_generic_message() {
+        assert!(DriverError::ConnectionFailed("dns error".into()).user_message().starts_with("Failed to connect"));
+        assert!(DriverError::PingFailed("connection refused".into()).user_message().starts_with("Could not reach"));
+    }
+
+    #[test]
+    fn credential_and_storage_failures_have_their_own_messages() {
+        assert!(DriverError::CredentialsUnavailable("locked".into()).user_message().contains("keyring"));
+        assert_eq!(DriverError::ConnectionNotFound("x".into()).user_message(), "This connection no longer exists.");
+        assert_eq!(DriverError::StorageFailed("io".into()).user_message(), "Could not read the saved connections.");
+    }
+
+    #[test]
+    fn query_errors_pass_the_server_message_on() {
+        assert_eq!(
+            DriverError::FindDocumentsFailed("unknown top level operator: $foo".into()).user_message(),
+            "The query failed: unknown top level operator: $foo"
+        );
+        assert!(DriverError::FindDocumentsFailed("not authorized on shop to execute command".into())
+            .user_message()
+            .starts_with("Not allowed"));
+        assert_eq!(DriverError::InvalidQuery("The sort must be an object".into()).user_message(), "The sort must be an object");
+    }
+
+    #[test]
+    fn serializes_kind_message_and_user_message() {
+        let value = serde_json::to_value(DriverError::CredentialsUnavailable("locked".into())).unwrap();
+        assert_eq!(value["kind"], "CredentialsUnavailable");
+        assert_eq!(value["message"], "Could not read the password from the keyring: locked");
+        assert!(value["user_message"].as_str().unwrap().contains("keyring"));
     }
 }

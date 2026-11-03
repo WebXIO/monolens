@@ -1,0 +1,126 @@
+# Builds and tests the app on every desktop platform it ships to. Only Linux is used day to day,
+# so this is where macOS and Windows get compiled and tested at all.
+name: ci
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# a new push to a pull request makes its running check pointless; every commit on
+# develop and main keeps its own run
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    strategy:
+      # one platform failing shouldn't hide whether the others pass
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+
+    steps:
+      # git on the Windows runner would check out CRLF line endings
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+
+      - name: Install the Tauri system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      # Vite 8 needs Node 20.19 or 22.12 and newer
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # the version comes from packageManager in package.json
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test:frontend --run
+
+      # also creates dist/, which the Tauri crate embeds
+      - run: pnpm build
+
+      - run: cargo test
+        working-directory: src-tauri
+
+      # the 2 module_inception warnings are known, so warnings don't fail the job
+      - run: cargo clippy --all-targets
+        working-directory: src-tauri
+
+  # the #[ignore] tests against a real MongoDB; service containers exist only on Linux runners
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mongo:
+        # 8.0 and 8.3 refuse to start on Linux 6.19 and newer (SERVER-121912), 8.2 runs
+        image: mongo:8.2
+        env:
+          MONGO_INITDB_ROOT_USERNAME: root
+          MONGO_INITDB_ROOT_PASSWORD: ci-root-password
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      MONGODB_TEST_HOST: 127.0.0.1
+      MONGODB_TEST_PORT: 27017
+      MONGODB_TEST_USER: root
+      MONGODB_TEST_PASSWORD: ci-root-password
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the Tauri system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # what the tests expect, see the integration module in src-tauri/src/drivers/mongo_official_driver.rs
+      - name: Create the test user and data
+        run: >-
+          docker exec ${{ job.services.mongo.id }} mongosh --quiet
+          -u root -p ci-root-password --authenticationDatabase admin --eval '
+          const shop = db.getSiblingDB("shop");
+          shop.createUser({ user: "reader", pwd: "readerpw", roles: [{ role: "read", db: "shop" }] });
+          shop.users.insertMany([{ name: "Ada", age: 36 }, { name: "Bob", age: 19 }]);'
+
+      # a dev build needs no dist/, so there is no frontend build here
+      - run: cargo test -- --ignored
+        working-directory: src-tauri
