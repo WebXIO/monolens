@@ -2,59 +2,51 @@
 
 ## Purpose
 
-In a collection's tab the user writes a filter in MongoDB shell syntax, e.g. `{ age: { $gt: 18 }, _id: ObjectId("…") }`, runs it and sees the matching documents. This is how Monolens reads data today.
+In a collection's tab the user writes a filter, a sort and a projection in MongoDB shell syntax, e.g. `{ age: { $gt: 18 }, _id: ObjectId("…") }`, runs it and pages through the matching documents. This is how Monolens reads data today.
 
 ## How it works
 
 **The view** (`TabViewQuery`)
 
-- A query input, an Execute button, a limit dropdown (10, 25, 50, 100, 200; default 50), a Refresh button and the switch between table and JSON view.
-- When the view mounts it runs the query once. Execute, Refresh and `Ctrl+Enter` run it again.
-- `execute()`:
-  1. An empty input becomes `{}`.
-  2. `parseMongoDbQuery` parses the input. A parse error is a toast, and nothing is sent.
-  3. It invokes `start_find_documents` with the active connection, the tab's database and collection, the filter, `skip: 0` and the limit, then `await_task_result`.
-  4. It stores `{ documents, totalCount }`.
-  5. If documents came back, it takes the field names of the first one for the autocomplete.
+- Inputs for filter (default `{ }`), sort and projection, an Execute button that turns into Cancel while a query runs, a limit dropdown (10, 25, 50, 100, 200; default 50), Refresh (this page again), the switch between table and JSON view, and the page navigation: "51–100 of 1,234" with previous and next. A total with "~" is an estimate.
+- When the view mounts it runs the query once. Execute, `Mod+Enter` (in the active tab only) and a new limit run what is typed, from the first page. Previous, next and Refresh repeat the query that was run last, with another skip; what is typed since doesn't count until it is executed.
+- `parseQueryTexts` parses the three inputs (`queryState.ts`). An empty input or `{ }` means none. A parse error names the input ("Sort: Unexpected token: EOF") and nothing is sent.
+- The query goes through `ConnectionServiceIPC.findDocuments(connectionId, query)` as a cancellable task; a new query cancels one still running. A failed query is a toast with the server's message; the old results stay.
+- The autocomplete knows the fields of all documents of the last result.
 - The documents go to the table or the JSON view, see [document-views.md](document-views.md).
 
 **The query input** (`QueryInput`)
 
-- A CodeMirror 6 editor, kept to one line, with the One Dark theme. A clear button (X) appears when the query is not empty and resets it to `{ }`.
-- Autocomplete (`useMongoAutoComplete` in `src/domains/mongo`):
-  - After a colon it offers the query operators (`$eq` … `$text`) and the shell functions (`ObjectId`, `ISODate`, `NumberLong`, `NumberDecimal`, `Timestamp`, `RegExp`), which insert their parentheses.
-  - After `{` or `,` it offers the field names of the last result, the top-level operators `$and`, `$or`, `$nor`, `$text`, and the operators.
+- A CodeMirror 6 editor, kept to one line, with the One Dark theme and an optional placeholder. A clear button (X) appears when the input is not empty and resets it to `{ }`.
+- Autocomplete (`useMongoAutoComplete` in `src/domains/mongo`): after a colon the query operators and the shell functions; after `{` or `,` the field names, the top-level operators `$and`, `$or`, `$nor`, `$text`, and the operators.
 
 **The parser** (`src/utils/queryParser`)
 
-- `generateTokens` turns the text into tokens: braces, brackets, parentheses, colon, comma, strings in `"` or `'` with backslash escapes, numbers (digits, `.`, a leading `-`), and identifiers (`[a-zA-Z_$][a-zA-Z0-9_$]*`).
-- `createParser().parseValue()` reads objects, arrays, strings, numbers, `true`, `false`, `null` and function calls. Keys may be identifiers or strings. A trailing comma is allowed.
-- A function call becomes extended JSON (`transformFunction`):
+- `generateTokens`: braces, brackets, parentheses, colon, comma, strings in `"` or `'` with backslash escapes, numbers with decimals and exponents, regex literals `/pattern/flags`, identifiers including dots (`user.address.city` as an unquoted key). An unterminated string or regex is an error.
+- `createParser().parseQuery()` reads objects, arrays, strings, numbers, regexes, `true`, `false`, `null` and function calls, `new` in front of a function is ignored. Keys may be identifiers or strings, a trailing comma is allowed, a missing comma is an error, and nothing may follow the value.
+- Shell functions become extended JSON that bson in Rust reads as BSON types; every function checks its arguments, so nothing silently becomes a plain object (`transformFunction`):
 
-  | Shell | Sent as |
-  |---|---|
-  | `ObjectId("x")` | `{ $oid: "x" }` |
-  | `ISODate("x")`, `Date("x")` | `{ $date: "x" }` |
-  | `NumberLong(n)` | `{ $numberLong: "n" }` |
-  | `NumberDecimal(n)` | `{ $numberDecimal: "n" }` |
-  | `Timestamp(t, i)` | `{ $timestamp: { t, i } }` |
-  | `BinData(type, "b64")` | `{ $binary: { base64, subType: type } }` |
-  | `RegExp("p", "o")` | `{ $regex: "p", $options: "o" }` |
+  | Shell | Sent as | Checked |
+  |---|---|---|
+  | `ObjectId("x")` | `{ $oid }`, lowercase | 24 hex characters |
+  | `ISODate("x")`, `Date("x")`, `new Date(…)` | `{ $date: "<ISO>" }` | a date or date-time without zone is UTC; milliseconds; no argument is now; invalid is an error |
+  | `NumberLong(n)`, `NumberInt(n)` | `{ $numberLong }`, `{ $numberInt }` | integers, NumberInt within 32 bits |
+  | `NumberDecimal(n)` | `{ $numberDecimal }` | a number |
+  | `Timestamp(t, i)` | `{ $timestamp: { t, i } }` | non-negative integers |
+  | `BinData(type, "b64")`, `UUID("…")` | `{ $binary: { base64, subType } }` (hex; UUID subtype `04`) | subtype 0–255, base64, 32 hex characters |
+  | `RegExp("p", "o")`, `/p/o` | `{ $regularExpression: { pattern, options } }` | options from `i m s x u`, sorted |
 
-  Any other function is an error.
-
-**In Rust** (`find_documents` of the MongoDB driver)
-
-- `bson::to_document` turns the JSON filter into BSON. bson's serializer reads objects that look like extended JSON as BSON types, so `{ $oid }`, `{ $numberLong }`, `{ $numberDecimal }`, `{ $timestamp }` and `{ $date }` with an RFC 3339 string become real types.
-- `find` with `skip`, `limit` and `allowDiskUse(true)`. The cursor is read into a list of JSON values.
-- `count_documents` with the same filter gives `totalCount`.
+**In Rust**: `start_find_documents(connectionId, query)` runs find (filter, sort, projection, skip, limit 1–10000, `allowDiskUse`) and the count at the same time: `estimatedDocumentCount` for an empty filter (marked as estimate), `countDocuments` otherwise. Documents return as relaxed extended JSON, see [document-views.md](document-views.md).
 
 ## Decisions
 
 - **A parser of our own** (`0c738f1`) for the shell syntax: unquoted keys, single quotes and shell functions, which JSON doesn't allow. The history gives no reason for not using a library.
-- **Extended JSON as the format between UI and Rust.** The filter crosses IPC as JSON, and bson turns the extended-JSON objects into types without code of our own.
+- **Extended JSON between UI and Rust.** The query crosses IPC as JSON, and bson turns the extended-JSON objects into types. Since `094ed26` the parser checks every function, because what bson can't read silently matched nothing (e.g. `ISODate("2024-01-01")`, which bson only reads as a full RFC 3339 date).
+- **A regex is a BSON regex** (`094ed26`), not the `$regex` operator, so it also works inside `$in`.
 - **CodeMirror with autocomplete** (`9f677e1`).
 - **Run on open**: a new tab shows the first documents at once.
+- **Paging repeats the last executed query** (`16b6cd7`), so typing doesn't change what the next page means.
+- **An empty filter is counted from metadata** (`5a30f74`): counting a big collection with `countDocuments` scans it. The UI marks the number as estimate.
 
 ## Building steps
 
@@ -68,32 +60,24 @@ In a collection's tab the user writes a filter in MongoDB shell syntax, e.g. `{ 
 | 2026-03-02 | Header and query controls stay in place while the data scrolls | `0a88369` |
 | 2026-03-02 | Clear button | `17ac29b` |
 | 2026-03-02 | Table view, limit dropdown, view switch | `ead8967` |
+| 2026-11-03 | Parser: checked shell functions, UTC dates, regex literals, `NumberInt`, `UUID`, `new`, dotted keys, exponents, nothing after the query | `094ed26` |
+| 2026-11-03 | `Mod+Enter` only in the active tab; each tab queries its own connection | `95a3e7b`, `afd84c7` |
+| 2026-11-03 | Rust: one `FindQuery` with sort and projection, the count alongside, the server's message on errors | `5a30f74` |
+| 2026-11-03 | Sort and projection inputs, paging with the total, cancel, error toasts, autocomplete from all documents | `16b6cd7` |
 
 ## Limits and open points
 
-Read from the code on 2026-11-03, not reproduced in the running app:
-
-- **Only filter and limit.** `skip` is always 0, so there is no paging. Projection and sort are missing too, although issue #12 (closed) listed them. The Rust command already takes `skip`.
-- **`totalCount` is computed but never shown.** Every query also counts all matches, a second full query on the server.
-- **Server errors are swallowed.** `execute()` has `try`/`finally` without `catch`: a failed query shows no toast, the old results stay, and the rejection is unhandled. It also bypasses `ConnectionServiceIPC.findDocuments` and `abortableInvoke`, so it can't be cancelled and its error isn't unwrapped.
-- **The autocomplete knows only the first document's fields.** `new Set(...arrays)` uses only its first argument.
-- **Shell functions that don't become BSON types** stay plain objects and match nothing, without an error:
-  - `ISODate("2024-01-01")`: bson only reads a full RFC 3339 string like `2024-01-01T00:00:00Z` as a date
-  - `ObjectId` with a string that is not 24 hex characters
-  - `BinData(0, "…")`: bson expects the subtype as a hex string
-- `RegExp` becomes the `$regex` operator, which works as the condition of a field but not inside `$in`.
-- **Not supported**: dotted keys without quotes (`user.name: 1` fails; `"user.name": 1` works), `/regex/` literals, `new Date()`, `NumberInt`, `UUID`, exponents (`1e5`), comments.
-- Text after the first complete value is ignored: `{ a: 1 } }` runs as `{ a: 1 }`.
-- `ConnectionServiceIPC.findDocuments` exists and is unused.
-- The test named "throws" in `query-parser.test.ts` checks nothing: it parses `{ a: 1, }`, which succeeds.
-- Open issues: #11 a query builder, #41 building queries by drag and drop, #13 export a query as code, #42 `Ctrl+Enter` runs in every tab.
+- Find only: no aggregation, no `explain`, no `$where` with JavaScript functions, no comments in the inputs, no `NumberDouble`, `MinKey` or `MaxKey`.
+- The estimate of an unfiltered collection may be off, e.g. after an unclean shutdown or on a sharded cluster.
+- Open issues: #11 a query builder, #41 building queries by drag and drop, #13 export a query as code.
 
 ## Where the code is
 
 | What | Path |
 |---|---|
 | View | `src/components/tabs/views/TabViewQuery.vue` |
+| Parsing the inputs, paging | `src/components/query/queryState.ts` (tests in `src/components/query/test/`) |
 | Input and autocomplete | `src/components/query/QueryInput.vue`, `src/domains/mongo/index.ts` |
 | Parser and tests | `src/utils/queryParser/`, `src/utils/queryParser/test/` |
-| Command | `src-tauri/src/database/commands/start_find_documents.rs` |
-| Find and count | `find_documents` in `src-tauri/src/drivers/mongo_official_driver.rs`, `src-tauri/src/database/models/find_document.rs` |
+| Command | `src-tauri/src/database/commands/start_find_documents.rs`, `FindQuery` in `src-tauri/src/database/models/find_document.rs` |
+| Find, count, conversion | `find_documents` in `src-tauri/src/drivers/mongo_official_driver.rs`, `src-tauri/src/drivers/documents.rs` |

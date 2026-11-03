@@ -1,6 +1,14 @@
 # Working state: bugs fixed, querying complete, several connections at once
 
-> **Status:** open, written on 2026-11-03. Decisions 1 to 4 were agreed with Kilian on 2026-11-03, decisions 5 to 23 with the go-ahead to build the same day. Built on `fix/working_state` from `develop`.
+> **Status:** implemented on 2026-11-03 on `fix/working_state` (`520f438` to `d5ff9e3`, docs in the following commit). The feature files describe the result; the most changed are [connection-manager.md](../../features/connection-manager.md), [connect-and-explorer.md](../../features/connect-and-explorer.md) and [query-tab.md](../../features/query-tab.md).
+>
+> Deviations:
+> - **A package update came in between**, at Kilian's request after step 1: pnpm 12 pinned (`e19ec32`), all npm packages (`3493da8`, with the TanStack Table 9 migration and `@lucide/vue` for the deprecated `lucide-vue-next`), forms moved from vee-validate to TanStack Form because `@vee-validate/zod` only supports zod 3 (`3c87afd`), all crates with keyring 4 (`955c08f`). TypeScript stays on 6, vue-tsc can't run on 7.
+> - Steps 2 and 3 swapped places. Step 4 only brought the credential trait; model v2, migration and `ClientOptions` came together in step 5 with the TypeScript model, so every commit leaves a working app. Removing `get_connection` in step 6 also removed `ConnectionRepositoryIPC` and the `save_connection(s)` wrappers of step 12.
+> - Not in the plan: the user info of a stored connection string goes back into it in memory before parsing (the driver checks `authMechanism` against it); the store reloads the list from Rust after an edit (the form's copy could hold credentials of a string); `update_connection` keeps the id of the path; closing the last tab leaves no stale active tab; the dialog validates instead of disabling its buttons.
+> - The Tauri Linux prerequisites were not installed on the development machine, so the first `cargo check` only reused builds from March; they were installed during the round.
+>
+> Verified: 141 frontend tests, 81 Rust unit tests, 11 integration tests against a `mongo:8` container (root and a user with `read` on one database), the UI in a browser with a stand-in for the IPC. **Not verified**: the app in a Tauri window, `pnpm tauri build`, `mongodb+srv://`, TLS against a server, the migration of a real `connections.json` (unit-tested with its shape), macOS (`Cmd` and the menu) and Windows.
 
 ## Context
 
@@ -8,27 +16,27 @@ Monolens was picked up again on 2026-11-03 after a pause since March. The docume
 
 What is broken or missing today, read from the code. The feature files have the details:
 
-- **Build**: `pnpm build` and `pnpm tauri build` fail on an unused import in `tokens.test.ts` ([app-shell.md](../features/app-shell.md)).
+- **Build**: `pnpm build` and `pnpm tauri build` fail on an unused import in `tokens.test.ts` ([app-shell.md](../../features/app-shell.md)).
 - **Connections**:
-  - The Rust pool never drops a driver, so edits and a corrected password need a restart ([connect-and-explorer.md](../features/connect-and-explorer.md)).
-  - The host field suggests `mongodb+srv://`, but only host and port work ([connection-manager.md](../features/connection-manager.md)).
+  - The Rust pool never drops a driver, so edits and a corrected password need a restart ([connect-and-explorer.md](../../features/connect-and-explorer.md)).
+  - The host field suggests `mongodb+srv://`, but only host and port work ([connection-manager.md](../../features/connection-manager.md)).
   - `connectionType` is never read, and its TypeScript value `"SharedCluster"` doesn't match Rust's.
-  - A keyring failure reads as a host problem ([credential-storage.md](../features/credential-storage.md)).
-- **Connection test**: a failing stage isn't marked failed, and a user without the `serverStatus` privilege fails although connecting would work ([connection-test.md](../features/connection-test.md)).
-- **Tabs and shortcuts** ([tabs.md](../features/tabs.md), [shortcuts.md](../features/shortcuts.md)):
+  - A keyring failure reads as a host problem ([credential-storage.md](../../features/credential-storage.md)).
+- **Connection test**: a failing stage isn't marked failed, and a user without the `serverStatus` privilege fails although connecting would work ([connection-test.md](../../features/connection-test.md)).
+- **Tabs and shortcuts** ([tabs.md](../../features/tabs.md), [shortcuts.md](../../features/shortcuts.md)):
   - Every tab's container keys the view by the active tab, so views multiply and run the query several times.
   - `Ctrl+Enter` runs in every view (#42).
   - `CommandRegistry.unsubscribe` calls the subscriber.
   - Tabs survive a switch of connection and then query the new server.
-- **Queries** ([query-tab.md](../features/query-tab.md)):
+- **Queries** ([query-tab.md](../../features/query-tab.md)):
   - Errors from the server are swallowed.
   - A query can't be cancelled.
   - No paging, sort or projection; the total is counted but never shown.
   - The autocomplete only knows the first document's fields.
   - Several shell functions silently become filters that match nothing (`ISODate("2024-01-01")`, a bad `ObjectId`, `BinData`).
-- **Errors and logs**: `FindDocumentsFailed` drops the server's message ([error-handling.md](../features/error-handling.md)). The log level is `Debug` in release builds, and the dialog logs passwords at `trace` ([logging.md](../features/logging.md)).
-- **Display**: `Int64` above 2^53 loses precision ([document-views.md](../features/document-views.md)).
-- **Dead code** ([overview.md](../architecture/overview.md#commands)):
+- **Errors and logs**: `FindDocumentsFailed` drops the server's message ([error-handling.md](../../features/error-handling.md)). The log level is `Debug` in release builds, and the dialog logs passwords at `trace` ([logging.md](../../features/logging.md)).
+- **Display**: `Int64` above 2^53 loses precision ([document-views.md](../../features/document-views.md)).
+- **Dead code** ([overview.md](../../architecture/overview.md#commands)):
   - wrappers for Rust commands that no longer exist
   - an unused repository layer
   - two unused synchronous commands
