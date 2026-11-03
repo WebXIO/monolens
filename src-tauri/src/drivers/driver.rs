@@ -3,15 +3,31 @@ use serde::{Deserialize, Serialize};
 use super::errors::DriverError;
 use crate::database::models::find_document::FindDocumentsResult;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum StageStatus {
+    Pending,
+    Passed,
+    Failed,
+    /// the check could not run, e.g. without the privilege; the test goes on
+    Skipped,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct TestStage {
-    pub status: Option<bool>,
+    pub status: StageStatus,
     pub title: String,
+    /// e.g. the detected version, or why a stage was skipped
+    pub detail: Option<String>,
 }
 
 impl TestStage {
-    pub fn new(status: Option<bool>, title: String) -> Self {
-        TestStage { status, title }
+    pub fn pending(title: &str) -> Self {
+        TestStage {
+            status: StageStatus::Pending,
+            title: title.to_string(),
+            detail: None,
+        }
     }
 }
 

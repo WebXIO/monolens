@@ -1,13 +1,26 @@
 use crate::{
     connector::models::connection::Connection, database::models::find_document::FindDocumentsResult, drivers::{
         client_options::client_options,
-        driver::{DatabaseDriver, ProgressCallback, TestStage},
+        driver::{DatabaseDriver, ProgressCallback, StageStatus, TestStage},
         errors::DriverError,
     }
 };
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{bson::doc, Client};
+
+const TEST_STAGES: [&str; 5] = [
+    "Initialize",
+    "Ping Database",
+    "Reading status",
+    "Detecting version",
+    "Connected",
+];
+
+/// MongoDB's error code 13, Unauthorized: the user lacks the privilege for a command.
+fn is_unauthorized(error: &mongodb::error::Error) -> bool {
+    matches!(error.kind.as_ref(), mongodb::error::ErrorKind::Command(command) if command.code == 13)
+}
 
 pub struct MongoDbOfficialDriver {
     client: Option<Client>,
@@ -53,69 +66,81 @@ impl DatabaseDriver for MongoDbOfficialDriver {
     }
 
     /// Testing Connection
-    /// ## Steps
+    /// ## Stages
     /// 1. Initialize
-    /// 2. Ping Database
-    /// 3. Reading stats
-    /// 4. Version detection
+    /// 2. Ping Database (also authenticates)
+    /// 3. Reading status (`serverStatus`, skipped without the privilege)
+    /// 4. Detecting version (`buildInfo`, needs no privilege)
     /// 5. Connected
+    ///
+    /// Every stage is reported as pending first, so the stage titles exist only here.
     async fn test_connection(
         &self,
         on_progress: ProgressCallback,
     ) -> Result<Vec<TestStage>, DriverError> {
-        let mut stages: Vec<TestStage> = vec![
-            TestStage::new(None, String::from("Initialize")),
-            TestStage::new(None, String::from("Ping Database")),
-            TestStage::new(None, String::from("Reading status")),
-            TestStage::new(None, String::from("Detecting version")),
-            TestStage::new(None, String::from("Connected")),
-        ];
+        let mut stages: Vec<TestStage> = TEST_STAGES.iter().map(|title| TestStage::pending(title)).collect();
+        for (index, stage) in stages.iter().enumerate() {
+            on_progress(index, stage);
+        }
+
+        let mut report = |index: usize, status: StageStatus, detail: Option<String>| {
+            stages[index].status = status;
+            stages[index].detail = detail;
+            on_progress(index, &stages[index]);
+        };
 
         // Stage 0: Initialize Connection
-        let client_ref = self
-            .client
-            .as_ref()
-            .ok_or(DriverError::ClientNotInitialized)?;
-        stages[0].status = Some(true);
-        on_progress(0, &stages[0]);
+        let Some(client_ref) = self.client.as_ref() else {
+            report(0, StageStatus::Failed, None);
+            return Err(DriverError::ClientNotInitialized);
+        };
+        report(0, StageStatus::Passed, None);
 
         let default_database_name = self
             .connection
             .authentication
             .database
-            .as_ref()
-            .map(|s| s.as_str())
+            .as_deref()
+            .filter(|name| !name.trim().is_empty())
             .unwrap_or("admin");
 
         let default_database = client_ref.database(default_database_name);
 
         // Stage 1: Ping Database
-        default_database
-            .run_command(doc! {"ping": 1})
-            .await
-            .map_err(|e| DriverError::PingFailed(e.to_string()))?;
-        stages[1].status = Some(true);
-        on_progress(1, &stages[1]);
+        if let Err(e) = default_database.run_command(doc! {"ping": 1}).await {
+            report(1, StageStatus::Failed, None);
+            return Err(DriverError::PingFailed(e.to_string()));
+        }
+        report(1, StageStatus::Passed, None);
 
         // Stage 2: Reading Server status
-        let server_status = default_database
-            .run_command(doc! {"serverStatus": 1})
-            .await
-            .map_err(|e| DriverError::ServerStatusFailed(e.to_string()))?;
-        stages[2].status = Some(true);
-        on_progress(2, &stages[2]);
-
-        // Stage 3: Detecting MongoDB version
-        if server_status.get_str("version").is_ok() {
-            stages[3].status = Some(true);
-        } else {
-            stages[3].status = Some(false);
+        match default_database.run_command(doc! {"serverStatus": 1}).await {
+            Ok(_) => report(2, StageStatus::Passed, None),
+            Err(e) if is_unauthorized(&e) => report(
+                2,
+                StageStatus::Skipped,
+                Some(String::from("No permission to read the server status")),
+            ),
+            Err(e) => {
+                report(2, StageStatus::Failed, None);
+                return Err(DriverError::ServerStatusFailed(e.to_string()));
+            }
         }
-        on_progress(3, &stages[3]);
+
+        // Stage 3: Detecting MongoDB version; an unknown version doesn't stop the test
+        match default_database.run_command(doc! {"buildInfo": 1}).await {
+            Ok(info) => match info.get_str("version") {
+                Ok(version) => report(3, StageStatus::Passed, Some(format!("MongoDB {version}"))),
+                Err(_) => report(3, StageStatus::Failed, Some(String::from("The server reported no version"))),
+            },
+            Err(e) => {
+                log::warn!("buildInfo failed: {}", e);
+                report(3, StageStatus::Failed, Some(String::from("Could not read the version")));
+            }
+        }
 
         // Stage 4: Connected
-        stages[4].status = Some(true);
-        on_progress(4, &stages[4]);
+        report(4, StageStatus::Passed, None);
 
         Ok(stages)
     }
@@ -267,6 +292,70 @@ mod integration {
         );
         let driver = connected(connection(ConnectionTarget::Uri { uri }, root(None))).await;
         assert!(driver.list_databases().await.unwrap().contains(&"admin".to_string()));
+    }
+
+    fn statuses(stages: &[TestStage]) -> Vec<StageStatus> {
+        stages.iter().map(|stage| stage.status).collect()
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn the_connection_test_passes_every_stage_for_root_and_names_the_version() {
+        let driver = connected(connection(host(), root(None))).await;
+        let reported = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = std::sync::Arc::clone(&reported);
+
+        let stages = driver
+            .test_connection(Box::new(move |index, stage| sink.lock().unwrap().push((index, stage.clone()))))
+            .await
+            .unwrap();
+
+        assert_eq!(statuses(&stages), vec![StageStatus::Passed; 5]);
+        assert!(stages[3].detail.as_deref().unwrap().starts_with("MongoDB "), "{:?}", stages[3]);
+        let reported = reported.lock().unwrap();
+        // five pending stages first, then one report per stage
+        assert_eq!(reported.len(), 10);
+        assert!(reported[..5].iter().all(|(_, stage)| stage.status == StageStatus::Pending));
+    }
+
+    /// Needs a user `reader` with password `readerpw` and the role read on the database `shop`.
+    #[tokio::test]
+    #[ignore]
+    async fn a_user_without_the_server_status_privilege_skips_that_stage() {
+        let reader = AuthenticationOptions {
+            kind: AuthenticationKind::BASIC,
+            username: Some("reader".into()),
+            password: Some("readerpw".into()),
+            database: Some("shop".into()),
+        };
+        let driver = connected(connection(host(), reader)).await;
+
+        let stages = driver.test_connection(Box::new(|_, _| {})).await.unwrap();
+
+        assert_eq!(
+            statuses(&stages),
+            vec![StageStatus::Passed, StageStatus::Passed, StageStatus::Skipped, StageStatus::Passed, StageStatus::Passed]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_wrong_password_fails_the_ping_stage() {
+        let driver = connected(connection(host(), root(Some("wrong".into())))).await;
+        let failed = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let sink = std::sync::Arc::clone(&failed);
+
+        let err = driver
+            .test_connection(Box::new(move |index, stage| {
+                if stage.status == StageStatus::Failed {
+                    *sink.lock().unwrap() = Some(index);
+                }
+            }))
+            .await
+            .unwrap_err();
+
+        assert!(err.user_message().starts_with("Authentication failed"), "{err:?}");
+        assert_eq!(*failed.lock().unwrap(), Some(1));
     }
 
     #[tokio::test]

@@ -10,7 +10,7 @@ import { toast } from 'vue-sonner';
 
 // this is how the payload from Rust looks like for progress events
 interface TestProgressPayload {
-  taskId: string;
+  testId: string;
   stageIndex: number;
   stage: TestStage;
 }
@@ -117,7 +117,9 @@ export const useConnectionStore = defineStore('connection', () => {
 
   async function testConnection(connection: Omit<Connection, 'id'>): Promise<TestStage[]> {
     isTesting.value = true;
-    testStages.value = _createPendingStages();
+    // the driver reports every stage as pending first, then each result
+    testStages.value = [];
+    const testId = globalThis.crypto.randomUUID();
 
     const controller = new AbortController();
     testAbortController.value = controller;
@@ -125,13 +127,14 @@ export const useConnectionStore = defineStore('connection', () => {
 
     try {
       unlisten = await listen<TestProgressPayload>('test-connection-progress', (event) => {
-        const { stageIndex, stage } = event.payload;
-        if (stageIndex >= 0 && stageIndex < testStages.value.length) {
-          testStages.value[stageIndex] = { ...stage };
-        }
+        const { testId: eventTestId, stageIndex, stage } = event.payload;
+        if (eventTestId !== testId || stageIndex < 0) return;
+        const next = [...testStages.value];
+        next[stageIndex] = { ...stage };
+        testStages.value = next;
       });
 
-      const stages = await connectionService.testConnection(connection, { signal: controller.signal });
+      const stages = await connectionService.testConnection(connection, testId, { signal: controller.signal });
 
       // Set final stages from the completed result
       testStages.value = stages;
@@ -189,16 +192,6 @@ export const useConnectionStore = defineStore('connection', () => {
       return result.data;
     }
     return null;
-  }
-
-  function _createPendingStages(): TestStage[] {
-    return [
-      { title: 'Initialize', status: null },
-      { title: 'Ping Database', status: null },
-      { title: 'Reading status', status: null },
-      { title: 'Detecting version', status: null },
-      { title: 'Connected', status: null },
-    ]
   }
 
   return {

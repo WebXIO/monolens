@@ -21,10 +21,11 @@ export class ConnectionServiceIPC implements ConnectionService {
    getConnectionPassword(id: string): Promise<Result<string | null>> {
       return tryCatch<string | null>(invoke('get_connection_password', { id }));
    }
-   testConnection(connection: Omit<Connection, 'id'>, options?: { signal?: AbortSignal }): Promise<TestStage[]> {
+   // the progress events of this test carry testId
+   testConnection(connection: Omit<Connection, 'id'>, testId: string, options?: { signal?: AbortSignal }): Promise<TestStage[]> {
       return abortableInvoke<TestStage[]>(
          'start_test_connection',
-         { connection: { ...connection, id: '' } },
+         { connection: { ...connection, id: '' }, testId },
          { signal: options?.signal },
       );
    }

@@ -8,7 +8,7 @@ export abstract class ConnectionService {
   abstract createConnection(connection: Omit<Connection, "id">): Promise<Result<Connection>>;
   abstract updateConnection(id: string, connection: Connection): Promise<Result<void>>;
   abstract getConnectionPassword(id: string): Promise<Result<string | null>>;
-  abstract testConnection(connection: Omit<Connection, 'id'>, options?: { signal?: AbortSignal }): Promise<TestStage[]>;
+  abstract testConnection(connection: Omit<Connection, 'id'>, testId: string, options?: { signal?: AbortSignal }): Promise<TestStage[]>;
   abstract connect(connectionId: string, options?: { signal?: AbortSignal }): Promise<string[]>;
   abstract disconnect(connectionId: string): Promise<Result<void>>;
   abstract listCollections(connectionId: string, databaseName: string): Promise<Result<string[]>>;

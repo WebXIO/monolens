@@ -77,9 +77,10 @@ describe("ConnectionServiceIPC", () => {
       options: { tls: false, tlsCaFile: null, tlsAllowInvalidCertificates: false, replicaSet: null, serverSelectionTimeoutSecs: null },
     };
 
-    await service.testConnection(connection);
+    await service.testConnection(connection, "t1");
 
     expect(calls[0].cmd).toBe("start_test_connection");
     expect((calls[0].args.connection as { id: string }).id).toBe("");
+    expect(calls[0].args.testId).toBe("t1");
   });
 });
