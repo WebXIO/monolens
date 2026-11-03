@@ -73,3 +73,53 @@ jobs:
       # the 2 module_inception warnings are known, so warnings don't fail the job
       - run: cargo clippy --all-targets
         working-directory: src-tauri
+
+  # the #[ignore] tests against a real MongoDB; service containers exist only on Linux runners
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mongo:
+        image: mongo:8
+        env:
+          MONGO_INITDB_ROOT_USERNAME: root
+          MONGO_INITDB_ROOT_PASSWORD: ci-root-password
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      MONGODB_TEST_HOST: 127.0.0.1
+      MONGODB_TEST_PORT: 27017
+      MONGODB_TEST_USER: root
+      MONGODB_TEST_PASSWORD: ci-root-password
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the Tauri system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # what the tests expect, see the integration module in src-tauri/src/drivers/mongo_official_driver.rs
+      - name: Create the test user and data
+        run: >-
+          docker exec ${{ job.services.mongo.id }} mongosh --quiet
+          -u root -p ci-root-password --authenticationDatabase admin --eval '
+          const shop = db.getSiblingDB("shop");
+          shop.createUser({ user: "reader", pwd: "readerpw", roles: [{ role: "read", db: "shop" }] });
+          shop.users.insertMany([{ name: "Ada", age: 36 }, { name: "Bob", age: 19 }]);'
+
+      # a dev build needs no dist/, so there is no frontend build here
+      - run: cargo test -- --ignored
+        working-directory: src-tauri
