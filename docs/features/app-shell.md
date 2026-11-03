@@ -43,10 +43,13 @@ The frame around the features: the window, the layout, the theme, the font, the 
 | 2026-11-03 | macOS menu without "Close Window" | `95a3e7b` |
 | 2026-11-03 | Confirmation dialog | `29aceb2` |
 | 2026-11-03 | Template leftovers removed: Vite favicon and SVGs, title "Monolens" | `d5ff9e3` |
+| 2026-11-03 | Vite config on `import.meta.dirname` | `3c38991` |
+| 2026-11-03 | CI: tests and build on Linux, macOS and Windows | `b69ba0b` |
 
 ## Limits and open points
 
-- No CI, no release pipeline, no code signing, no auto-update.
+- CI tests and builds on Linux, macOS and Windows, but the app has only been run on Linux. On macOS the Keychain may ask for access again after every rebuild of an unsigned app, and on Windows the web view may keep browser keys such as Ctrl+R (reload, which closes all tabs); both are unchecked.
+- No release pipeline, no code signing, no auto-update.
 - No CSP. The web view only loads the bundled UI, but a CSP would limit the damage of injected content.
 - Dark theme only. No settings page.
 - `tauri-plugin-opener` is registered but the UI doesn't use it yet.
@@ -57,6 +60,7 @@ The frame around the features: the window, the layout, the theme, the font, the 
 | What | Path |
 |---|---|
 | Window, bundle, menu | `src-tauri/tauri.conf.json`, `src-tauri/capabilities/default.json`, `src-tauri/src/menu.rs` |
+| CI | `.github/workflows/ci.yml` |
 | Layout | `src/App.vue`, `src/components/Header.vue`, `src/components/Logo.vue`, `src/components/ConfirmDialog.vue` |
 | Theme and font | `src/styles/default.css`, `src/assets/fonts/roboto/` |
 | UI kit | `src/components/ui/`, `components.json`, `src/lib/utils.ts` |
