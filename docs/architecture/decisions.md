@@ -58,4 +58,5 @@ This log was written on 2026-11-03 from the commit history, the pull requests an
 | Date | Decision | Why | Rejected |
 |---|---|---|---|
 | 2026-11-03 | `docs/` documents features, architecture, decisions and plans, the same way as in smtp-relay. `CLAUDE.md` holds the working rules: `/code-review` before every push, no Claude co-author trailers, unit tests for every piece of logic, lowercase conventional commits | The project is being revived. Its state had to be written down first, and work on it should follow the same rules as the other projects | |
+| 2026-11-03 | Claude Code gets a knowledge graph of the code and the docs through graphify. Only the stored doc extraction (`graphify-out/cache/semantic/`) is committed, each clone builds the graph itself | Same setup as smtp-relay: the cache saves the model cost of reading the docs again, and `graph.json` is rewritten whole on every rebuild | Committing `graph.json`, ignoring `graphify-out/` completely |
 | 2026-02-05 | Feature branches off `develop`, merged through GitHub pull requests; `develop` goes to `main` from time to time | The history records no reason | |
