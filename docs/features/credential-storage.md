@@ -7,7 +7,7 @@ Passwords of saved connections must not sit in a plain file. Monolens keeps them
 ## How it works
 
 - `CredentialService` wraps `keyring::Entry`. The service name is `monolens-connections` and the entry is `connection:<connection id>:basic_password`. Set, get and delete run in `spawn_blocking`, because the keyring calls block.
-- The `keyring` crate uses the native store of each platform (features `apple-native`, `windows-native`, `linux-native-sync-persistent`, `vendored`). On Linux it combines keyutils, fast and kernel-level for the session, with the Secret Service for persistence. `vendored` bundles the OpenSSL that the Linux backend needs.
+- The `keyring` crate (4.x, its default `v1` mode) uses the native store of each platform: Keychain on macOS, the Credential Manager on Windows, the Secret Service on Linux (through `zbus`, pure Rust, no OpenSSL).
 - Writing:
   - `create_connection` takes the password out of the request, writes it to the keyring under the new id, and saves the connection without it.
   - `update_connection` writes the password for `BASIC` when one is sent, and deletes the entry for `NONE`. The file never gets the password.
@@ -26,7 +26,7 @@ Passwords of saved connections must not sit in a plain file. Monolens keeps them
 ## Decisions
 
 - **OS keyring through `keyring`** (`eb8fdd9`, issue #15). Tauri Stronghold was added on 2026-02-15 (`8b54cd3`) and reverted two days later (`02a2c3a`). The revert says only that Stronghold "is not needed anymore".
-- **Linux: keyutils plus Secret Service, OpenSSL vendored** (`aad2e90`). Fast access during a session, persistence across sessions, no system OpenSSL needed.
+- **Linux: keyutils plus Secret Service, OpenSSL vendored** (`aad2e90`), replaced on 2026-11-03 by keyring 4, which only uses the Secret Service. Passwords saved with keyring 3 are read by keyring 4 unchanged (checked with the three connections on the development machine).
 - **Passwords stay in Rust** (`00b3284`, `84839a6`, PR #23). Listing doesn't touch the keyring, and only the commands that connect load a password.
 - **Exception: the edit dialog shows the password** (`dc020e7`, issue #29). Users wanted to see what they saved. It is fetched only when the dialog opens.
 - **Percent-encoding through `Url`** (`8a9638a`, issue #21). Passwords with special characters broke the connection string.
@@ -43,6 +43,7 @@ Passwords of saved connections must not sit in a plain file. Monolens keeps them
 | 2026-02-18 | Password loaded only on connect, never returned when listing | `00b3284`, `84839a6` |
 | 2026-02-20 | The edit dialog shows the stored password | `dc020e7` |
 | 2026-02-22 | Credentials removed from logs, URI logged only in debug builds | `8d6bcac` |
+| 2026-11-03 | keyring 4: the Secret Service alone on Linux, no keyutils cache, no OpenSSL | `chore: update rust crates` |
 
 ## Limits and open points
 

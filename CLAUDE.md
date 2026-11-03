@@ -33,7 +33,7 @@ cd src-tauri && cargo test      # no Rust tests exist yet
 cd src-tauri && cargo clippy
 ```
 
-Needs Rust and the Tauri prerequisites (`README.md`). For a manual check run a local MongoDB, e.g. `docker run --rm -p 27017:27017 mongo:8`, and connect to `localhost:27017` without authentication.
+Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`. Without them no Rust code compiles, but an old `target/` can make `cargo check` look fine. For a manual check run a local MongoDB, e.g. `docker run --rm -p 27017:27017 mongo:8`, and connect to `localhost:27017` without authentication.
 
 ## Architecture
 
@@ -107,7 +107,8 @@ Needs Rust and the Tauri prerequisites (`README.md`). For a manual check run a l
 - Commands reach the keyring by downcasting the repository to `FileRepository`. Another repository type fails with "Unsupported repository type".
 - The log level is `Debug` in release builds too. `ConnectionDialog` logs form values, password included, at `trace`.
 - Query filters cross IPC as extended JSON. bson turns `{ $oid }`, `{ $date: "<RFC 3339>" }` and the number wrappers into BSON types; anything it can't read stays a plain object and silently matches nothing.
-- On Linux the keyring needs a Secret Service (GNOME Keyring, KWallet). `keyring` is built with `vendored`, which compiles OpenSSL.
+- On Linux the keyring needs a Secret Service (GNOME Keyring, KWallet). keyring 4 talks to it through `zbus`; there is no keyutils cache any more.
+- `cargo clippy` reports 15 warnings in code that predates the revival (needless borrows, missing `Default`, an 8-argument command, …). Fix them where you touch the code.
 - Change the pinned pnpm with `pnpm self-update <version>` inside the repo, never by hand, or `--frozen-lockfile` fails (pnpm records its version in the lockfile).
 - `gh` is not installed on this machine. The repo is public: read issues and pull requests through `https://api.github.com/repos/WebXIO/monolens/issues` and `/pulls`.
 

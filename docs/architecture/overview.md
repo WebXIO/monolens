@@ -31,7 +31,7 @@ This file describes `develop` as of 2026-11-03 (`859c252`). `main` is at `efee3a
 
 | Part | Technology | Path |
 |---|---|---|
-| Rust core | Tauri 2.10, tokio, `mongodb` 3.5 (bson 2.15), `keyring` 3.6, `thiserror`, `tauri-plugin-log`, `tauri-plugin-opener` | `src-tauri/src` |
+| Rust core | Tauri 2.12, tokio, `mongodb` 3.9 (bson 2.15), `keyring` 4.2, `thiserror`, `tauri-plugin-log`, `tauri-plugin-opener` | `src-tauri/src` |
 | UI | Vue 3.5, Pinia 4, Tailwind 4 with shadcn-vue components on reka-ui, TanStack Form + zod 4, vue-sonner, lucide icons (`@lucide/vue`) | `src` |
 | Query editor and JSON view | CodeMirror 6 (`@codemirror/lang-json`, `theme-one-dark`, `autocomplete`) | `src/components/query`, `src/components/documents/json` |
 | Table view | TanStack Table 9 and TanStack Virtual 3 | `src/components/documents/table`, `src/composables/table` |
@@ -136,13 +136,13 @@ pnpm build              # vue-tsc --noEmit, then vite build (also the beforeBuil
 pnpm tauri build        # installers for the current platform
 ```
 
-Rust and the Tauri prerequisites must be installed (see the root README). `7ee4b70` (2026-02-15) notes that the build worked for deb, rpm and AppImage.
+Rust and the Tauri prerequisites must be installed (see the root README). On Ubuntu 26.04 that is `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`; webkit brings `libdbus-1-dev`, which `tao` needs since Tauri 2.12. `7ee4b70` (2026-02-15) notes that the build worked for deb, rpm and AppImage.
 
-Checked on 2026-11-03 on `develop`, Node 24.9, pnpm 11.3, Rust 1.93:
+Checked on 2026-11-03 on `develop` (`859c252`), Node 24.9, pnpm 11.3, Rust 1.93:
 
 - `pnpm test:frontend --run`: 3 files, 27 tests pass.
-- `cargo check`: passes without warnings.
-- `pnpm build` fails: `src/utils/queryParser/test/tokens.test.ts(3,1): error TS6133: 'T' is declared but its value is never read.` The tsconfig includes the test files and sets `noUnusedLocals`. `vite build` alone passes. So `pnpm tauri build` fails too until the import is removed.
+- `cargo check` seemed to pass, but only reused build results from March: the Tauri prerequisites were not installed on the machine, and no Rust code compiled. With them installed, it passes; `cargo clippy` has 15 warnings.
+- `pnpm build` fails: `src/utils/queryParser/test/tokens.test.ts(3,1): error TS6133: 'T' is declared but its value is never read.` The tsconfig includes the test files and sets `noUnusedLocals`. `vite build` alone passes. So `pnpm tauri build` fails too until the import is removed (fixed in `c25ace4`).
 - There are no Rust tests and no CI.
 
 ## Branches
