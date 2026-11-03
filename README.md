@@ -37,3 +37,5 @@ pnpm install
 ```bash
 pnpm tauri dev
 ```
+
+How Monolens is built, why, and what is planned is documented in [docs/](docs/README.md).
