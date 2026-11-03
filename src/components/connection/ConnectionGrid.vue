@@ -6,9 +6,11 @@ import ConnectionDialog from './ConnectionDialog.vue';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { describeTarget, type Connection } from '@/domains/connections';
 import { useLogger } from '@/composables/useLogger';
+import { useConfirm } from '@/composables/useConfirm';
 
 const logger = useLogger("ConnectionGrid");
 const store = useConnectionStore();
+const { confirm } = useConfirm();
 
 const dialogOpen = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
@@ -46,7 +48,13 @@ function handleCancelConnect() {
 }
 
 async function handleDelete(connection: Connection) {
-  if (confirm(`Delete connection "${connection.name}"?`)) {
+  const confirmed = await confirm({
+    title: `Delete "${connection.name}"?`,
+    description: 'The connection and its saved password are removed from this computer.',
+    confirmLabel: 'Delete',
+    destructive: true,
+  });
+  if (confirmed) {
     await store.deleteConnection(connection.id);
   }
 }

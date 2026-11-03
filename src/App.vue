@@ -8,6 +8,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import ConnectionGrid from '@/components/connection/ConnectionGrid.vue';
 import { useConnectionStore } from '@/stores/connectionStore';
 import TabsContainer from './components/tabs/TabsContainer.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 const store = useConnectionStore();
 
@@ -18,6 +19,7 @@ onMounted(() => {
 
 <template>
   <Toaster rich-colors theme="dark" position="top-center" />
+  <ConfirmDialog />
   <div class="[--header-height:calc(--spacing(14))]">
     <SidebarProvider class="flex flex-col">
       <Header />

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useForm } from '@tanstack/vue-form';
-import { z } from 'zod';
 
 import {
   Dialog,
@@ -11,20 +10,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import Input from '@/components/ui/input/Input.vue';
 import Button from '@/components/ui/button/Button.vue';
 import TestStagesDisplay from './TestStagesDisplay.vue';
-import { Eye, EyeOff } from '@lucide/vue';
+import { ChevronDown, ChevronRight, Eye, EyeOff } from '@lucide/vue';
 
 import { useConnectionStore } from '@/stores/connectionStore';
-import {
-  AuthenticationKind,
-  ConnectorKind,
-  defaultConnectionOptions,
-  type Connection
-} from '@/domains/connections';
+import { AuthenticationKind, type Connection } from '@/domains/connections';
 import { useLogger } from '@/composables/useLogger';
+import {
+  connectionFormSchema,
+  connectionFromFormValues,
+  defaultFormValues,
+  formValuesFromConnection,
+  type ConnectionFormValues,
+  type ConnectionMode,
+} from './connectionForm';
 
 const props = defineProps<{
   open: boolean;
@@ -56,33 +58,15 @@ const dialogDescription = computed(() =>
     : 'Update connection settings'
 );
 
-const formSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  host: z.string().trim().min(1, 'Host is required'),
-  port: z.number().int().min(1).max(65535),
-  useAuth: z.boolean(),
-  username: z.string(),
-  password: z.string(),
-  authDatabase: z.string(),
-});
+// bound, not static: vue-tsc 3 misreads a // inside a static attribute value
+const URI_PLACEHOLDER = 'mongodb+srv://cluster0.example.net/?retryWrites=true';
 
-type FormValues = z.infer<typeof formSchema>;
 type SubmitAction = { action: 'test' | 'save' };
 
-const defaultValues: FormValues = {
-  name: '',
-  host: 'localhost',
-  port: 27017,
-  useAuth: false,
-  username: '',
-  password: '',
-  authDatabase: 'admin',
-};
-
 const form = useForm({
-  defaultValues,
+  defaultValues: defaultFormValues(),
   validators: {
-    onSubmit: formSchema,
+    onSubmit: connectionFormSchema,
   },
   onSubmitMeta: { action: 'save' } as SubmitAction,
   onSubmit: async ({ value, meta }) => {
@@ -95,6 +79,8 @@ const form = useForm({
 });
 
 const values = form.useSelector((state) => state.values);
+const showPassword = ref(false);
+const showOptions = ref(false);
 
 function isInvalid(field: { state: { meta: { isTouched: boolean; isValid: boolean } } }) {
   return field.state.meta.isTouched && !field.state.meta.isValid;
@@ -102,57 +88,40 @@ function isInvalid(field: { state: { meta: { isTouched: boolean; isValid: boolea
 
 watch(() => props.connection, async (conn) => {
   if (conn) {
-    const useAuth = conn.authentication.kind !== AuthenticationKind.NONE;
     let password = '';
-    if (useAuth && props.mode === 'edit') {
+    if (conn.authentication.kind !== AuthenticationKind.NONE && props.mode === 'edit') {
       password = (await store.getConnectionPassword(conn.id)) ?? '';
     }
-    // connection strings get their own fields with the next step; until then the host field shows them
-    const target = conn.target;
-    form.reset({
-      name: conn.name,
-      host: target.kind === 'Host' ? target.host : target.uri,
-      port: target.kind === 'Host' ? target.port : 27017,
-      useAuth,
-      username: conn.authentication.username || '',
-      password,
-      authDatabase: conn.authentication.database || 'admin',
-    });
+    const formValues = formValuesFromConnection(conn, password);
+    form.reset(formValues);
+    showOptions.value = hasOptions(formValues);
   }
 }, { immediate: true });
 
 watch(isOpen, (open) => {
   if (!open) {
-    form.reset(defaultValues);
+    form.reset(defaultFormValues());
     store.clearTestState();
     showPassword.value = false;
+    showOptions.value = false;
   }
 });
 
-const showPassword = ref(false);
-
-function buildConnectionFromForm(values: FormValues): Omit<Connection, 'id'> {
-  return {
-    name: values.name,
-    connector: ConnectorKind.MongoDb,
-    target: { kind: 'Host', host: values.host.trim(), port: values.port },
-    options: props.connection?.options ?? defaultConnectionOptions(),
-    authentication: {
-      kind: values.useAuth ? AuthenticationKind.BASIC : AuthenticationKind.NONE,
-      username: values.useAuth && values.username ? values.username : null,
-      password: values.useAuth && values.password ? values.password : null,
-      database: values.useAuth && values.authDatabase ? values.authDatabase : null,
-    },
-  };
+function hasOptions(v: ConnectionFormValues) {
+  return v.tls || Boolean(v.replicaSet.trim()) || Boolean(v.timeoutSecs.trim());
 }
 
-async function handleTest(values: FormValues) {
+function setMode(mode: ConnectionMode) {
+  form.setFieldValue('mode', mode);
+}
+
+async function handleTest(formValues: ConnectionFormValues) {
   logger.debug('testing connection');
-  await store.testConnection(buildConnectionFromForm(values));
+  await store.testConnection(connectionFromFormValues(formValues));
 }
 
-async function handleSave(values: FormValues) {
-  const connectionData = buildConnectionFromForm(values);
+async function handleSave(formValues: ConnectionFormValues) {
+  const connectionData = connectionFromFormValues(formValues);
 
   let saved: Connection | null = null;
 
@@ -172,19 +141,14 @@ async function handleSave(values: FormValues) {
   }
 }
 
+const isHostMode = computed(() => values.value.mode === 'host');
 const useAuth = computed(() => values.value.useAuth);
-const everythingFilled = computed(() => {
-  const v = values.value;
-  if (v.useAuth) {
-    return Boolean(v.name && v.host && v.port && v.username && v.password && v.authDatabase);
-  }
-  return Boolean(v.name && v.host && v.port);
-});
+const useTls = computed(() => values.value.tls);
 </script>
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="sm:max-w-[700px]">
+    <DialogContent class="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{{ dialogTitle }}</DialogTitle>
         <DialogDescription>{{ dialogDescription }}</DialogDescription>
@@ -210,7 +174,30 @@ const everythingFilled = computed(() => {
           </template>
         </form.Field>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="inline-flex rounded-md border border-border p-0.5" role="radiogroup" aria-label="Connect by">
+          <Button
+            :variant="isHostMode ? 'secondary' : 'ghost'"
+            :aria-checked="isHostMode"
+            role="radio"
+            size="sm"
+            type="button"
+            @click="setMode('host')"
+          >
+            Host and port
+          </Button>
+          <Button
+            :variant="!isHostMode ? 'secondary' : 'ghost'"
+            :aria-checked="!isHostMode"
+            role="radio"
+            size="sm"
+            type="button"
+            @click="setMode('uri')"
+          >
+            Connection string
+          </Button>
+        </div>
+
+        <div v-if="isHostMode" class="grid grid-cols-3 gap-4">
           <form.Field name="host">
             <template #default="{ field }">
               <Field class="col-span-2" :data-invalid="isInvalid(field)">
@@ -250,6 +237,30 @@ const everythingFilled = computed(() => {
           </form.Field>
         </div>
 
+        <form.Field v-else name="uri">
+          <template #default="{ field }">
+            <Field :data-invalid="isInvalid(field)">
+              <FieldLabel :for="field.name">Connection String</FieldLabel>
+              <Input
+                :id="field.name"
+                :name="field.name"
+                :model-value="field.state.value"
+                :aria-invalid="isInvalid(field)"
+                type="text"
+                :placeholder="URI_PLACEHOLDER"
+                autocomplete="off"
+                spellcheck="false"
+                @blur="field.handleBlur"
+                @update:model-value="(value) => field.handleChange(String(value))"
+              />
+              <FieldDescription>
+                The string carries all options. A username and password in it are moved out on save: the password goes to the system keyring.
+              </FieldDescription>
+              <FieldError v-if="isInvalid(field)" :errors="field.state.meta.errors" />
+            </Field>
+          </template>
+        </form.Field>
+
         <form.Field name="useAuth">
           <template #default="{ field }">
             <Field orientation="horizontal">
@@ -275,6 +286,7 @@ const everythingFilled = computed(() => {
                     :id="field.name"
                     :name="field.name"
                     :model-value="field.state.value"
+                    :aria-invalid="isInvalid(field)"
                     type="text"
                     placeholder="Username"
                     @blur="field.handleBlur"
@@ -294,6 +306,7 @@ const everythingFilled = computed(() => {
                       :id="field.name"
                       :name="field.name"
                       :model-value="field.state.value"
+                      :aria-invalid="isInvalid(field)"
                       :type="showPassword ? 'text' : 'password'"
                       placeholder="Password"
                       class="pr-10"
@@ -304,6 +317,7 @@ const everythingFilled = computed(() => {
                       type="button"
                       class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       tabindex="-1"
+                      :aria-label="showPassword ? 'Hide password' : 'Show password'"
                       @click="showPassword = !showPassword"
                     >
                       <EyeOff v-if="showPassword" class="h-4 w-4" />
@@ -317,21 +331,123 @@ const everythingFilled = computed(() => {
 
             <form.Field name="authDatabase">
               <template #default="{ field }">
-                <Field :data-invalid="isInvalid(field)">
+                <Field>
                   <FieldLabel :for="field.name">Auth Database</FieldLabel>
                   <Input
                     :id="field.name"
                     :name="field.name"
                     :model-value="field.state.value"
                     type="text"
-                    placeholder="admin"
+                    :placeholder="isHostMode ? 'admin' : 'from the string, else admin'"
                     @blur="field.handleBlur"
                     @update:model-value="(value) => field.handleChange(String(value))"
                   />
-                  <FieldError v-if="isInvalid(field)" :errors="field.state.meta.errors" />
                 </Field>
               </template>
             </form.Field>
+          </div>
+        </div>
+
+        <div v-if="isHostMode" class="space-y-3">
+          <button
+            type="button"
+            class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            :aria-expanded="showOptions"
+            @click="showOptions = !showOptions"
+          >
+            <ChevronDown v-if="showOptions" class="h-4 w-4" />
+            <ChevronRight v-else class="h-4 w-4" />
+            Options
+          </button>
+
+          <div v-if="showOptions" class="space-y-4 pl-4 border-l-2 border-muted">
+            <form.Field name="tls">
+              <template #default="{ field }">
+                <Field orientation="horizontal">
+                  <input
+                    :id="field.name"
+                    :checked="field.state.value"
+                    type="checkbox"
+                    class="h-4 w-4 rounded border-input"
+                    @change="(e: Event) => field.handleChange((e.target as HTMLInputElement).checked)"
+                  />
+                  <FieldLabel :for="field.name">Use TLS</FieldLabel>
+                </Field>
+              </template>
+            </form.Field>
+
+            <div v-if="useTls" class="grid grid-cols-3 items-end gap-4">
+              <form.Field name="tlsCaFile">
+                <template #default="{ field }">
+                  <Field class="col-span-2">
+                    <FieldLabel :for="field.name">CA File</FieldLabel>
+                    <Input
+                      :id="field.name"
+                      :name="field.name"
+                      :model-value="field.state.value"
+                      type="text"
+                      placeholder="/path/to/ca.pem (empty: system certificates)"
+                      @blur="field.handleBlur"
+                      @update:model-value="(value) => field.handleChange(String(value))"
+                    />
+                  </Field>
+                </template>
+              </form.Field>
+
+              <form.Field name="tlsAllowInvalidCertificates">
+                <template #default="{ field }">
+                  <Field orientation="horizontal" class="h-9">
+                    <input
+                      :id="field.name"
+                      :checked="field.state.value"
+                      type="checkbox"
+                      class="h-4 w-4 rounded border-input"
+                      @change="(e: Event) => field.handleChange((e.target as HTMLInputElement).checked)"
+                    />
+                    <FieldLabel :for="field.name">Allow invalid certificates</FieldLabel>
+                  </Field>
+                </template>
+              </form.Field>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4">
+              <form.Field name="replicaSet">
+                <template #default="{ field }">
+                  <Field class="col-span-2">
+                    <FieldLabel :for="field.name">Replica Set</FieldLabel>
+                    <Input
+                      :id="field.name"
+                      :name="field.name"
+                      :model-value="field.state.value"
+                      type="text"
+                      placeholder="rs0 (empty: none)"
+                      @blur="field.handleBlur"
+                      @update:model-value="(value) => field.handleChange(String(value))"
+                    />
+                  </Field>
+                </template>
+              </form.Field>
+
+              <form.Field name="timeoutSecs">
+                <template #default="{ field }">
+                  <Field :data-invalid="isInvalid(field)">
+                    <FieldLabel :for="field.name">Timeout (s)</FieldLabel>
+                    <Input
+                      :id="field.name"
+                      :name="field.name"
+                      :model-value="field.state.value"
+                      :aria-invalid="isInvalid(field)"
+                      type="text"
+                      inputmode="numeric"
+                      placeholder="30"
+                      @blur="field.handleBlur"
+                      @update:model-value="(value) => field.handleChange(String(value))"
+                    />
+                    <FieldError v-if="isInvalid(field)" :errors="field.state.meta.errors" />
+                  </Field>
+                </template>
+              </form.Field>
+            </div>
           </div>
         </div>
 
@@ -358,7 +474,6 @@ const everythingFilled = computed(() => {
           v-else
           type="button"
           variant="outline"
-          :disabled="!everythingFilled"
           class="hover:bg-info/10 hover:text-info hover:border-info/50 transition-colors"
           @click="form.handleSubmit({ action: 'test' })"
         >
@@ -366,7 +481,7 @@ const everythingFilled = computed(() => {
         </Button>
         <Button
           type="button"
-          :disabled="!everythingFilled || store.isTesting"
+          :disabled="store.isTesting"
           class="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-colors"
           @click="form.handleSubmit({ action: 'save' })"
         >
