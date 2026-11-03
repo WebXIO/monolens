@@ -9,15 +9,6 @@ export class ConnectionServiceIPC implements ConnectionService {
    listConnections(): Promise<Result<Connection[]>> {
       return tryCatch<Connection[]>(invoke('get_connections'));
    }
-   getConnection(id: string): Promise<Result<Connection>> {
-      return tryCatch<Connection>(invoke('get_connection', { id }));
-   }
-   saveConnection(id: string, connection: Omit<Connection, "id">): Promise<Result<void>> {
-      return tryCatch<void>(invoke('save_connection', { id, connection }));
-   }
-   saveConnections(connections: Omit<Connection, "id">[]): Promise<Result<void>> {
-      return tryCatch<void>(invoke('save_connections', { connections }));
-   }
    deleteConnection(id: string): Promise<Result<void>> {
       return tryCatch<void>(invoke('delete_connection', { id }));
    }
@@ -37,15 +28,22 @@ export class ConnectionServiceIPC implements ConnectionService {
          { signal: options?.signal },
       );
    }
-   connect(connection: Connection, options?: { signal?: AbortSignal }): Promise<string[]> {
+   // the rust core loads the saved connection and its password by id
+   connect(connectionId: string, options?: { signal?: AbortSignal }): Promise<string[]> {
       return abortableInvoke<string[]>(
          'start_connect',
-         { connection },
+         { connectionId },
          { signal: options?.signal },
       );
    }
+   disconnect(connectionId: string): Promise<Result<void>> {
+      return tryCatch<void>(invoke('disconnect', { connectionId }));
+   }
+   listCollections(connectionId: string, databaseName: string): Promise<Result<string[]>> {
+      return tryCatch<string[]>(invoke('list_collections', { connectionId, databaseName }));
+   }
    findDocuments(
-      connection: Connection,
+      connectionId: string,
       databaseName: string,
       collectionName: string,
       filter: Record<string, unknown>,
@@ -55,7 +53,7 @@ export class ConnectionServiceIPC implements ConnectionService {
    ): Promise<FindDocumentsResult> {
       return abortableInvoke<FindDocumentsResult>(
          'start_find_documents',
-         { connection, databaseName, collectionName, filter, skip, limit },
+         { connectionId, databaseName, collectionName, filter, skip, limit },
          { signal: options?.signal },
       );
    }

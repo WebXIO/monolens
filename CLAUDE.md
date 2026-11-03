@@ -45,15 +45,15 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 - Errors cross IPC as `{ kind, message, user_message }`: `DriverError` (drivers), `CommandError` (connector), `TaskError` (tasks). Each implements `Serialize` by hand. A new error variant needs a `user_message`, and the UI shows only that.
 - Slow work is a task: a `start_*` command passes its future to `TaskManager.spawn_task` and returns the id; the UI waits with `await_task_result` and cancels with `cancel_task`. The future returns `Result<serde_json::Value, serde_json::Value>`, with errors serialized through `serde_json::to_value(&e)`. Follow `start_connect.rs`.
 - Credentials: `get_connections`/`get_connection` never return a password. A command that talks to MongoDB loads it with `ConnectorRepository::hydrate` right before use. The only command that hands a password to the UI is `get_connection_password` (edit dialog). Passwords go through the `CredentialStore` trait: `CredentialService` is the OS keyring, `MemoryCredentialStore` (tests only) keeps them in memory and can be told to fail.
-- `ConnectionHandler.get_or_connect` keeps one driver per connection id for the life of the process. Nothing removes it yet (see Gotchas).
+- Commands that talk to MongoDB take a `connection_id`; `ConnectionHandler` loads the saved connection and its password from the repository and keeps one driver per id. `open` (connect and list the databases) drops a new driver again when that first command fails; `disconnect`, `update_connection` and `delete_connection` drop it too, so the next command uses the saved settings. Tests swap the driver through `ConnectionHandler::with_factory`.
 - `DatabaseDriver` is the seam for database work. Add a method to the trait, implement it in `MongoDbOfficialDriver`, then call it from a task command.
 - `connections.json` is `{ "version": 2, "connections": { "<id>": … } }`. A connection has a `target` (`{ "kind": "Host", host, port }` or `{ "kind": "Uri", uri }`) and `options` (TLS, CA file, invalid certificates, replica set, server selection timeout; host targets only). A change of the stored shape needs a new `STORAGE_VERSION` and a migration in `repositories/migrations.rs`, called from `FileRepository.load_storage`, which keeps the old file as `connections.v<n>.json`.
 - Before storing, `models/normalize.rs` checks a connection and moves credentials out of a connection string (`models/uri.rs`); a refusal is `RepositoryError::Invalid`, whose text the UI shows. `drivers/client_options.rs` builds the driver's `ClientOptions`: the builder for a host, `ClientOptions::parse` for a string, with the user info put back in just before parsing.
 
 ### Frontend (`src`)
 
-- `main.ts` calls `registerDomains` (creates `CommandRegistry`, `ConnectionServiceIPC`, `ConnectionRepositoryIPC` once and provides them) and then `registerPlugins` (Pinia, shortcuts). Read a service with `useDomain(Class)` in components, or `useDomain(Class, app)` in plugins.
-- IPC goes through `ConnectionServiceIPC`: CRUD returns `Result<T>` via `tryCatch`, slow commands use `abortableInvoke` with an `AbortSignal`. `TabViewQuery` and `AppSidebar` still call `invoke` directly; new code uses the service.
+- `main.ts` calls `registerDomains` (creates `CommandRegistry` and `ConnectionServiceIPC` once and provides them) and then `registerPlugins` (Pinia, shortcuts). Read a service with `useDomain(Class)` in components, or `useDomain(Class, app)` in plugins.
+- IPC goes through `ConnectionServiceIPC`: CRUD returns `Result<T>` via `tryCatch`, slow commands use `abortableInvoke` with an `AbortSignal`. `TabViewQuery` still calls `invoke` directly; new code uses the service.
 - Stores are Pinia setup stores (`defineStore('x', () => {...})`): `connectionStore` (connections, active connection, databases, test state), `tabsStore` (tabs, active tab, history).
 - Errors reach the user as `toast.error(extractErrorMessage(e))` (`vue-sonner`). Don't build error boxes.
 - Forms use TanStack Form (`@tanstack/vue-form`) with a zod 4 schema as validator (Standard Schema, no adapter) and shadcn-vue's `Field` components (`FieldLabel`, `FieldError`). Bind inputs through `update:model-value`. `ConnectionDialog.vue` is the example.
@@ -100,14 +100,12 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 - Run tools with `pnpm exec`, not `npx`: npm refuses to run in this repo, because `devEngines` names pnpm.
 - TanStack Table 9 only has the APIs of registered features. The table's features are `documentTableFeatures` in `useDocumentTable.ts`; `row.getVisibleCells()`, for example, needs `columnVisibilityFeature`.
 - vue-tsc 3 breaks on a `//` inside a static attribute value (a placeholder like `mongodb+srv://...` made it report errors further down the template).
-- The driver pool never drops a driver. After a failed connect or an edited connection, the old MongoDB client stays until restart. Disconnect in the UI only resets frontend state.
 - `TabsContainer` keys each tab's view by the *active* tab id, so views multiply and run duplicate queries. `Ctrl+Enter` runs in every mounted view (issue #42), and `CommandRegistry.unsubscribe` uses `findIndex(subscriber)`, which calls the subscriber. Details in `docs/features/tabs.md` and `shortcuts.md`.
 - `TabViewQuery` queries `connectionStore.activeConnection`, not the tab's own connection, and tabs survive a switch of connection.
-- `ConnectionServiceIPC.saveConnection`/`saveConnections` call commands that don't exist. `ConnectionRepositoryIPC` is registered and unused.
-- The log level is `Debug` in release builds too. `ConnectionDialog` logs form values, password included, at `trace`.
+- The log level is `Debug` in development builds and `Info` in release builds (`lib.rs`).
 - Query filters cross IPC as extended JSON. bson turns `{ $oid }`, `{ $date: "<RFC 3339>" }` and the number wrappers into BSON types; anything it can't read stays a plain object and silently matches nothing.
 - On Linux the keyring needs a Secret Service (GNOME Keyring, KWallet). keyring 4 talks to it through `zbus`; there is no keyutils cache any more.
-- `cargo clippy` reports 12 warnings in code that predates the revival (needless borrows, missing `Default`, an 8-argument command, …). Fix them where you touch the code.
+- `cargo clippy` reports 7 warnings in code that predates the revival (needless borrows, missing `Default`, an 8-argument command, …). Fix them where you touch the code.
 - Change the pinned pnpm with `pnpm self-update <version>` inside the repo, never by hand, or `--frozen-lockfile` fails (pnpm records its version in the lockfile).
 - `gh` is not installed on this machine. The repo is public: read issues and pull requests through `https://api.github.com/repos/WebXIO/monolens/issues` and `/pulls`.
 

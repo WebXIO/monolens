@@ -39,7 +39,12 @@ pub fn run() {
     builder
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(tauri_plugin_log::log::LevelFilter::Debug)
+                // debug output stays in development builds
+                .level(if cfg!(debug_assertions) {
+                    tauri_plugin_log::log::LevelFilter::Debug
+                } else {
+                    tauri_plugin_log::log::LevelFilter::Info
+                })
                 .build(),
         )
         .setup(|app| {
@@ -58,14 +63,12 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            database::commands::test_connection::test_connection,
             database::commands::start_test_connection::start_test_connection,
             database::commands::start_connect::start_connect,
-            database::commands::get_databases::get_databases,
+            database::commands::disconnect::disconnect,
             database::commands::list_collections::list_collections,
             database::commands::start_find_documents::start_find_documents,
             connector::commands::get_connections::get_connections,
-            connector::commands::get_connection::get_connection,
             connector::commands::get_connection_password::get_connection_password,
             connector::commands::create_connection::create_connection,
             connector::commands::update_connection::update_connection,

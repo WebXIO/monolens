@@ -78,6 +78,7 @@ export const useConnectionStore = defineStore('connection', () => {
       toast.error(extractErrorMessage(result.error));
       return false;
     }
+    // the rust core drops the connected driver of a deleted connection itself
     connections.value = connections.value.filter(c => c.id !== id);
     if (activeConnectionId.value === id) {
         activeConnectionId.value = null;
@@ -93,7 +94,7 @@ export const useConnectionStore = defineStore('connection', () => {
     connectAbortController.value = controller;
 
     try {
-      const dbs = await connectionService.connect(connection, { signal: controller.signal });
+      const dbs = await connectionService.connect(connection.id, { signal: controller.signal });
       databases.value = dbs;
       activeConnectionId.value = connection.id;
       return true;
@@ -155,9 +156,26 @@ export const useConnectionStore = defineStore('connection', () => {
     testAbortController.value?.abort();
   }
 
-  function disconnect() {
+  async function disconnect() {
+    const id = activeConnectionId.value;
     activeConnectionId.value = null;
     databases.value = [];
+
+    if (!id) return;
+    const result = await connectionService.disconnect(id);
+    if (result.error) {
+      logger.error('disconnect failed:', result.error);
+    }
+  }
+
+  async function listCollections(databaseName: string): Promise<string[] | null> {
+    if (!activeConnectionId.value) return null;
+    const result = await connectionService.listCollections(activeConnectionId.value, databaseName);
+    if (result.error) {
+      toast.error(extractErrorMessage(result.error));
+      return null;
+    }
+    return result.data;
   }
 
   function clearTestState() {
@@ -191,6 +209,7 @@ export const useConnectionStore = defineStore('connection', () => {
     connectTo,
     cancelConnect,
     disconnect,
+    listCollections,
     testConnection,
     cancelTest,
     clearTestState,

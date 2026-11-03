@@ -6,16 +6,12 @@ import { Button } from "@/components/ui/button"
 import { ChevronDown, Database, RefreshCcw, Loader2, ChevronUp, FileJson, LogOut } from '@lucide/vue';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useConnectionStore } from '@/stores/connectionStore';
-import { invoke } from '@tauri-apps/api/core';
-import { tryCatch } from '@/utils/result';
-import { useLogger } from '@/composables/useLogger';
 import { useTabsStore } from '@/stores/tabsStore';
 import { Context } from '@/domains/context';
 import { TabKind } from '@/domains/tabs';
 
 const props = defineProps<SidebarProps>()
 
-const logger = useLogger("AppSidebar");
 const store = useConnectionStore();
 const tabsStore = useTabsStore();
 
@@ -35,14 +31,12 @@ async function toggleDatabase(dbName: string) {
       return;
    }
 
-   const { data, error } = await tryCatch<string[]>(invoke('list_collections', { connection: store.activeConnection, databaseName: dbName }))
+   const data = await store.listCollections(dbName);
 
    if (data) {
       collections.value[dbName] = data;
       toggledDatabases.value.add(dbName);
    }
-   else
-      logger.error(error)
 
 }
 

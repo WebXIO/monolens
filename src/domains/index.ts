@@ -1,6 +1,5 @@
 import { App, inject } from "vue";
-import { ConnectionRepository, ConnectionServiceIPC } from "./connections";
-import { ConnectionRepositoryIPC } from "./connections/repositories/ConnectionRepositoryIPC";
+import { ConnectionServiceIPC } from "./connections";
 import { CommandRegistry } from "./shortcuts";
 import { useLogger } from "@/composables/useLogger";
 
@@ -15,12 +14,6 @@ export function registerDomains(app: App) {
   const providers = [
     provide((_context) => new CommandRegistry()),
     provide((_context) => new ConnectionServiceIPC()),
-    provide(
-      (context) =>
-        new ConnectionRepositoryIPC({
-          connectionService: context.read(ConnectionServiceIPC),
-        }) as ConnectionRepository,
-    ),
   ];
 
   (app as any).read = <T>(token: new (...args: any[]) => T): T => {

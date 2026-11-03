@@ -66,7 +66,7 @@ async function execute() {
 
    try {
       const id = await invoke('start_find_documents', {
-         connection: connectionStore.activeConnection,
+         connectionId: connectionStore.activeConnection.id,
          databaseName: tab.context.database,
          collectionName: tab.context.collection,
          filter: queryParsed,
