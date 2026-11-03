@@ -55,7 +55,7 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 
 - `main.ts` calls `registerDomains` (creates `CommandRegistry` and `ConnectionServiceIPC` once and provides them) and then `registerPlugins` (Pinia, shortcuts). Read a service with `useDomain(Class)` in components, or `useDomain(Class, app)` in plugins.
 - IPC goes through `ConnectionServiceIPC`: CRUD returns `Result<T>` via `tryCatch`, slow commands use `abortableInvoke` with an `AbortSignal`. `TabViewQuery` still calls `invoke` directly; new code uses the service.
-- Stores are Pinia setup stores (`defineStore('x', () => {...})`): `connectionStore` (connections, active connection, databases, test state), `tabsStore` (tabs, active tab, history).
+- Stores are Pinia setup stores (`defineStore('x', () => {...})`). `connectionStore` keeps the saved connections and one session per open connection (`sessions`: status `connecting`/`connected`, databases, cached collections); several connections can be open at once, and the grid gives way once one is connected. `disconnect(id)` closes that connection's tabs. `tabsStore` keeps the tabs (`{ connectionId, database, collection }` as context), the active tab and the history.
 - Errors reach the user as `toast.error(extractErrorMessage(e))` (`vue-sonner`). Don't build error boxes.
 - Ask before destructive actions with `await useConfirm().confirm({ title, description, confirmLabel, destructive })`; `ConfirmDialog` in `App.vue` shows it. Never the browser's `confirm()`.
 - Forms use TanStack Form (`@tanstack/vue-form`) with a zod 4 schema as validator (Standard Schema, no adapter) and shadcn-vue's `Field` components (`FieldLabel`, `FieldError`). Bind inputs through `update:model-value`. `ConnectionDialog.vue` is the example; its values, schema and conversion live in `connectionForm.ts`, tested without mounting.
@@ -101,8 +101,7 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 - Run tools with `pnpm exec`, not `npx`: npm refuses to run in this repo, because `devEngines` names pnpm.
 - TanStack Table 9 only has the APIs of registered features. The table's features are `documentTableFeatures` in `useDocumentTable.ts`; `row.getVisibleCells()`, for example, needs `columnVisibilityFeature`.
 - vue-tsc 3 breaks on a `//` inside a static attribute value (a placeholder like `mongodb+srv://...` made it report errors further down the template).
-- `TabsContainer` keys each tab's view by the *active* tab id, so views multiply and run duplicate queries. `Ctrl+Enter` runs in every mounted view (issue #42), and `CommandRegistry.unsubscribe` uses `findIndex(subscriber)`, which calls the subscriber. Details in `docs/features/tabs.md` and `shortcuts.md`.
-- `TabViewQuery` queries `connectionStore.activeConnection`, not the tab's own connection, and tabs survive a switch of connection.
+- Every tab has one view instance, kept mounted while hidden (`v-show`) and given its `tabId`; a view reads its own tab, never the active one. Subscribers of `event.execute` (`mod+enter`) must check that their tab is active.
 - The log level is `Debug` in development builds and `Info` in release builds (`lib.rs`).
 - Query filter, sort and projection cross IPC as extended JSON (`FindQuery`); `drivers/documents.rs` turns them into BSON (anything bson can't read stays a plain object, so the parser checks its shell functions) and turns found documents into relaxed extended JSON, with Int64 beyond ±2^53 as `{ "$numberLong": … }`. Find errors carry the server's message.
 - On Linux the keyring needs a Secret Service (GNOME Keyring, KWallet). keyring 4 talks to it through `zbus`; there is no keyutils cache any more.

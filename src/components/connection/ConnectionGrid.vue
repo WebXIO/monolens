@@ -16,8 +16,6 @@ const dialogOpen = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
 const editingConnection = ref<Connection | undefined>();
 
-const connectingId = ref<string | null>(null);
-
 onMounted(() => {
   store.loadConnections();
 });
@@ -37,14 +35,11 @@ function openEditDialog(connection: Connection) {
 }
 
 async function handleConnect(connection: Connection) {
-  connectingId.value = connection.id;
   await store.connectTo(connection);
-  connectingId.value = null;
 }
 
-function handleCancelConnect() {
-  store.cancelConnect();
-  connectingId.value = null;
+function handleCancelConnect(connection: Connection) {
+  store.cancelConnect(connection.id);
 }
 
 async function handleDelete(connection: Connection) {
@@ -113,10 +108,10 @@ function handleSaved(_connection: Connection) {
         </div>
         
         <Button 
-          v-if="connectingId === connection.id"
+          v-if="store.isConnecting(connection.id)"
           class="w-full mt-3 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50 transition-colors"
           variant="outline"
-          @click.stop="handleCancelConnect"
+          @click.stop="handleCancelConnect(connection)"
         >
           <Loader2 class="w-4 h-4 mr-2 animate-spin" />
           Cancel
@@ -124,7 +119,7 @@ function handleSaved(_connection: Connection) {
         <Button 
           v-else
           class="w-full mt-3 hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-colors"
-          :disabled="connectingId !== null"
+          :disabled="Object.values(store.sessions).some((session) => session.status === 'connecting')"
           @click="handleConnect(connection)"
         >
           Connect

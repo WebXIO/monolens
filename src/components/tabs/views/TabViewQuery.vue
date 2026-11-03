@@ -16,7 +16,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useDomain } from '@/domains';
 import { FindDocumentsResult } from '@/domains/connections/models/findDocumentsResult';
 import { CommandRegistry, Commands } from '@/domains/shortcuts';
-import { useConnectionStore } from '@/stores/connectionStore';
 import { useTabsStore } from '@/stores/tabsStore';
 import { parseMongoDbQuery } from '@/utils/queryParser';
 import { invoke } from '@tauri-apps/api/core';
@@ -24,9 +23,13 @@ import { Braces, Loader2, Play, RefreshCcw, TableIcon } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { toast } from "vue-sonner";
 
+const props = defineProps<{ tabId: string }>();
+
 const commandHandler = useDomain<CommandRegistry>(CommandRegistry);
 const tabsStore = useTabsStore();
-const connectionStore = useConnectionStore();
+
+// the tab this view belongs to, not the active one
+const tab = computed(() => tabsStore.tabs.get(props.tabId) ?? null);
 
 const loading = ref(false);
 const viewMode = ref<DocumentViewMode>(DocumentViewMode.TABLE);
@@ -41,15 +44,14 @@ const collectionProperties = ref<string[]>([]);
 const limitOptions = [10, 25, 50, 100, 200];
 
 const tableStorageKey = computed(() => {
-   const tab = tabsStore.getActiveTab();
-   if (!tab || !connectionStore.activeConnection) return '';
-   return `${connectionStore.activeConnection.id}:${tab.context.database}:${tab.context.collection}`;
+   if (!tab.value) return '';
+   const { connectionId, database, collection } = tab.value.context;
+   return `${connectionId}:${database}:${collection}`;
 });
 
 async function execute() {
-   if (!connectionStore.activeConnection) return;
-   const tab = tabsStore.getActiveTab();
-   if (!tab) return;
+   const context = tab.value?.context;
+   if (!context) return;
 
    if (!query.value) query.value = '{}'
 
@@ -66,10 +68,10 @@ async function execute() {
 
    try {
       const id = await invoke('start_find_documents', {
-         connectionId: connectionStore.activeConnection.id,
+         connectionId: context.connectionId,
          query: {
-            databaseName: tab.context.database,
-            collectionName: tab.context.collection,
+            databaseName: context.database,
+            collectionName: context.collection,
             filter: queryParsed,
             skip: 0,
             limit: limit.value,
@@ -88,13 +90,18 @@ async function execute() {
    }
 }
 
+// hidden tabs stay mounted, so mod+enter must only run the active one
+function executeIfActive() {
+   if (tabsStore.activeTab === props.tabId) execute();
+}
+
 onMounted(() => {
-   commandHandler.subscribe(Commands.EVENT_EXECUTE, execute);
+   commandHandler.subscribe(Commands.EVENT_EXECUTE, executeIfActive);
    execute();
 })
 
 onUnmounted(() => {
-   commandHandler.unsubscribe(Commands.EVENT_EXECUTE, execute);
+   commandHandler.unsubscribe(Commands.EVENT_EXECUTE, executeIfActive);
 })
 
 </script>

@@ -24,7 +24,7 @@ onMounted(() => {
     <SidebarProvider class="flex flex-col">
       <Header />
       <div class="flex flex-1 min-h-0">
-        <template v-if="!store.activeConnection">
+        <template v-if="!store.hasOpenConnections">
           <div class="flex-1">
             <ConnectionGrid />
           </div>

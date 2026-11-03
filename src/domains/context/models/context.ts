@@ -1,7 +1,6 @@
-import { Connection } from "@/domains/connections"
-
+/** What a tab shows: a collection of an open connection. */
 export type Context = {
-   connection: Connection
+   connectionId: string;
    database: string;
    collection: string;
 }

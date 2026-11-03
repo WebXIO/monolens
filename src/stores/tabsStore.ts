@@ -66,6 +66,7 @@ export const useTabsStore = defineStore("tabs", () => {
         : null;
 
     if (lastTab) switchTab(lastTab);
+    else activeTab.value = null;
   }
 
   function getActiveTab() {
@@ -78,12 +79,19 @@ export const useTabsStore = defineStore("tabs", () => {
         tab.type === type &&
         tab.context.collection === context.collection &&
         tab.context.database === context.database &&
-        tab.context.connection.id === context.connection.id
+        tab.context.connectionId === context.connectionId
       )
         return id;
     }
 
     return null;
+  }
+
+  /** Closes every tab of a connection, e.g. when it is disconnected. */
+  function closeTabsOf(connectionId: string) {
+    for (const [id, tab] of [...tabs.value.entries()]) {
+      if (tab.context.connectionId === connectionId) deleteTab(id);
+    }
   }
 
   function closeActiveTab() {
@@ -101,6 +109,7 @@ export const useTabsStore = defineStore("tabs", () => {
     deleteTab,
     getActiveTab,
     hasContext,
+    closeTabsOf,
     closeActiveTab,
   };
 });
