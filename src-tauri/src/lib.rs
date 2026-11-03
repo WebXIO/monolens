@@ -14,6 +14,7 @@ pub mod connection_handler;
 pub mod connector;
 pub mod database;
 pub mod drivers;
+pub mod menu;
 pub mod task_manager;
 
 pub struct AppState {
@@ -28,7 +29,13 @@ pub fn create_app_state(repository: impl ConnectorRepository + 'static) -> AppSt
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    if cfg!(target_os = "macos") {
+        builder = builder.menu(menu::macos_menu::<tauri::Wry>);
+    }
+
+    builder
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(tauri_plugin_log::log::LevelFilter::Debug)

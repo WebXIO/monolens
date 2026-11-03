@@ -70,7 +70,7 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 ## Testing
 
 - Every piece of logic gets unit tests, for the regular cases and every edge case you can think of: empty and missing input, boundaries, wrong kinds of values, failing collaborators (MongoDB, keyring, file system).
-- Frontend: vitest in happy-dom (the `test` block of `vite.config.ts`), files `*.test.ts` in a `test/` folder next to the code (as `src/utils/queryParser/test/`, `src/composables/table/test/`). Pull logic out of components into composables or `utils` so it can be tested without mounting.
+- Frontend: vitest in happy-dom (the `test` block of `vite.config.ts`), files `*.test.ts` in a `test/` folder next to the code (as `src/utils/queryParser/test/`, `src/composables/table/test/`). Pull logic out of components into composables or `utils` so it can be tested without mounting. `src/test/setup.ts` mocks Tauri's IPC for every test (`mockIPC` answering `undefined`); a test that needs real answers calls `mockIPC` with its own handler.
 - Rust: `#[cfg(test)] mod tests` in the file, `cargo test`. Abstract MongoDB and the keyring behind traits where a test needs to replace them.
 - Untested today, worth covering when touched: `formatCellValue`, `mergeColumnOrder` and the column sizing, `eventToKeyString` and `CommandRegistry`, `tabsStore`, `extractErrorMessage`, `abortableInvoke`; in Rust `TaskManager`, `DriverError::user_message`, `build_connection_string`, `FileRepository`.
 - `vue-tsc` type-checks the test files with `noUnusedLocals`, so an unused import in a test breaks `pnpm build`.
