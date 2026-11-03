@@ -33,15 +33,6 @@ export function parseQueryTexts(texts: QueryTexts): ParsedQuery {
   };
 }
 
-/** Field names of all documents for the autocomplete, `_id` first. */
-export function fieldNames(documents: Record<string, unknown>[]): string[] {
-  const names = new Set<string>();
-  for (const document of documents) {
-    for (const key of Object.keys(document)) names.add(key);
-  }
-  return [...names].sort((a, b) => (a === '_id' ? -1 : b === '_id' ? 1 : a.localeCompare(b)));
-}
-
 export type PageInfo = {
   /** "51–100 of 137", "~" before an estimated total */
   label: string;

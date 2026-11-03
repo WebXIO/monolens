@@ -18,12 +18,11 @@ pub async fn start_find_documents(
             let app_state = app_handle.state::<AppState>();
             let connection_handler = app_handle.state::<ConnectionHandler>();
 
-            let driver_lock = connection_handler
+            let driver = connection_handler
                 .get_or_connect(app_state.connection_repository.as_ref(), &connection_id)
                 .await
                 .map_err(|e| serde_json::to_value(&e).unwrap_or_default())?;
 
-            let driver = driver_lock.lock().await;
             let documents = driver
                 .find_documents(&query)
                 .await

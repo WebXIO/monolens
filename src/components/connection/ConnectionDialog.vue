@@ -86,8 +86,9 @@ function isInvalid(field: { state: { meta: { isTouched: boolean; isValid: boolea
   return field.state.meta.isTouched && !field.state.meta.isValid;
 }
 
-watch(() => props.connection, async (conn) => {
-  if (conn) {
+// filled on every opening: the same connection opened twice doesn't change props.connection
+watch(() => [props.open, props.connection] as const, async ([open, conn]) => {
+  if (open && conn) {
     let password = '';
     if (conn.authentication.kind !== AuthenticationKind.NONE && props.mode === 'edit') {
       password = (await store.getConnectionPassword(conn.id)) ?? '';

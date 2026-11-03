@@ -30,7 +30,8 @@ Connecting opens a saved connection; several can be open at once. The sidebar sh
 
 **The driver pool** (`ConnectionHandler`)
 
-- One driver per connection id. A driver leaves the pool on `disconnect`, when its connection is edited or deleted, and when its first command fails. The next command builds it again from the saved settings.
+- One driver per connection id, shared without a lock: the mongodb client runs several commands of one connection at the same time, so a slow query in one tab doesn't hold up another tab or the sidebar. The pool is only locked to look up and insert, not while a driver loads its password and connects.
+- A driver leaves the pool on `disconnect`, when its connection is edited or deleted, and when its first command fails. The next command builds it again from the saved settings.
 - `with_factory` lets tests use a fake driver.
 
 ## Decisions

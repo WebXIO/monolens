@@ -9,7 +9,7 @@ In a collection's tab the user writes a filter, a sort and a projection in Mongo
 **The view** (`TabViewQuery`)
 
 - Inputs for filter (default `{ }`), sort and projection, an Execute button that turns into Cancel while a query runs, a limit dropdown (10, 25, 50, 100, 200; default 50), Refresh (this page again), the switch between table and JSON view, and the page navigation: "51–100 of 1,234" with previous and next. A total with "~" is an estimate.
-- When the view mounts it runs the query once. Execute, `Mod+Enter` (in the active tab only) and a new limit run what is typed, from the first page. Previous, next and Refresh repeat the query that was run last, with another skip; what is typed since doesn't count until it is executed.
+- When the view mounts it runs the query once. Execute, `Mod+Enter` (in the active tab only) and a new limit run what is typed, from the first page; a new limit only takes effect when the inputs parse. Previous, next and Refresh repeat the query that was run last, with another skip; what is typed since doesn't count until it is executed.
 - `parseQueryTexts` parses the three inputs (`queryState.ts`). An empty input or `{ }` means none. A parse error names the input ("Sort: Unexpected token: EOF") and nothing is sent.
 - The query goes through `ConnectionServiceIPC.findDocuments(connectionId, query)` as a cancellable task; a new query cancels one still running. A failed query is a toast with the server's message; the old results stay.
 - The autocomplete knows the fields of all documents of the last result.
@@ -29,7 +29,7 @@ In a collection's tab the user writes a filter, a sort and a projection in Mongo
   | Shell | Sent as | Checked |
   |---|---|---|
   | `ObjectId("x")` | `{ $oid }`, lowercase | 24 hex characters |
-  | `ISODate("x")`, `Date("x")`, `new Date(…)` | `{ $date: "<ISO>" }` | a date or date-time without zone is UTC; milliseconds; no argument is now; invalid is an error |
+  | `ISODate("x")`, `Date("x")`, `new Date(…)` | `{ $date: "<ISO>" }` | a date or date-time without zone is UTC, with `T` or a space between; milliseconds; no argument is now; invalid is an error |
   | `NumberLong(n)`, `NumberInt(n)` | `{ $numberLong }`, `{ $numberInt }` | integers, NumberInt within 32 bits |
   | `NumberDecimal(n)` | `{ $numberDecimal }` | a number |
   | `Timestamp(t, i)` | `{ $timestamp: { t, i } }` | non-negative integers |

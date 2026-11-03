@@ -68,7 +68,8 @@ export function defaultFormValues(): ConnectionFormValues {
     useAuth: false,
     username: '',
     password: '',
-    authDatabase: 'admin',
+    /** empty: admin for a host, the string's authSource (else admin) for a connection string */
+    authDatabase: '',
     tls: false,
     tlsCaFile: '',
     tlsAllowInvalidCertificates: false,
@@ -92,7 +93,7 @@ export function formValuesFromConnection(connection: Connection, password: strin
     useAuth: authentication.kind !== AuthenticationKind.NONE,
     username: authentication.username ?? '',
     password,
-    authDatabase: authentication.database ?? defaults.authDatabase,
+    authDatabase: authentication.database ?? '',
     tls: options.tls,
     tlsCaFile: options.tlsCaFile ?? '',
     tlsAllowInvalidCertificates: options.tlsAllowInvalidCertificates,

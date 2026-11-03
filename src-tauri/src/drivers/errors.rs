@@ -34,6 +34,9 @@ pub enum DriverError {
     #[error("Invalid query: {0}")]
     InvalidQuery(String),
 
+    #[error("Invalid connection: {0}")]
+    InvalidConnection(String),
+
     #[error("Connection not found: {0}")]
     ConnectionNotFound(String),
 
@@ -100,7 +103,7 @@ impl DriverError {
                     format!("The query failed: {msg}")
                 }
             }
-            DriverError::InvalidQuery(msg) => msg.clone(),
+            DriverError::InvalidQuery(msg) | DriverError::InvalidConnection(msg) => msg.clone(),
             DriverError::ConnectionNotFound(_) => {
                 String::from("This connection no longer exists.")
             }
@@ -144,6 +147,7 @@ impl DriverError {
             DriverError::UnknownDriver => "UnknownDriver",
             DriverError::FindDocumentsFailed(_) => "FindDocumentsFailed",
             DriverError::InvalidQuery(_) => "InvalidQuery",
+            DriverError::InvalidConnection(_) => "InvalidConnection",
             DriverError::ConnectionNotFound(_) => "ConnectionNotFound",
             DriverError::StorageFailed(_) => "StorageFailed",
             DriverError::CredentialsUnavailable(_) => "CredentialsUnavailable",

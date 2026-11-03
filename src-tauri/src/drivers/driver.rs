@@ -36,7 +36,6 @@ pub type ProgressCallback = Box<dyn Fn(usize, &TestStage) + Send + Sync>;
 #[async_trait]
 pub trait DatabaseDriver: Send + Sync {
     async fn connect(&mut self) -> Result<(), DriverError>;
-    async fn disconnect(&mut self) -> Result<(), DriverError>;
     async fn test_connection(
         &self,
         on_progress: ProgressCallback,

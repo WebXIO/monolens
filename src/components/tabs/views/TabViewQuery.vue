@@ -3,7 +3,8 @@ import JSONDocumentsEditor from '@/components/documents/json/JSONDocumentsEditor
 import { DocumentViewMode } from '@/components/documents/models/types';
 import TableDocumentsView from '@/components/documents/table/TableDocumentsView.vue';
 import QueryInput from '@/components/query/QueryInput.vue';
-import { fieldNames, pageInfo, parseQueryTexts, type ParsedQuery } from '@/components/query/queryState';
+import { pageInfo, parseQueryTexts, type ParsedQuery } from '@/components/query/queryState';
+import { fieldNames } from '@/utils/documentFields';
 import { Button } from "@/components/ui/button";
 import {
    DropdownMenu,
@@ -112,25 +113,32 @@ async function run(query: ParsedQuery, pageSkip: number) {
    }
 }
 
-/** Runs what is typed, from the first page. */
-async function execute() {
-   let query: ParsedQuery;
+/** What is typed, or null after showing why it can't be parsed. */
+function parseInputs(): ParsedQuery | null {
    try {
-      query = parseQueryTexts({ filter: filterText.value, sort: sortText.value, projection: projectionText.value });
+      return parseQueryTexts({ filter: filterText.value, sort: sortText.value, projection: projectionText.value });
    } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
-      return;
+      return null;
    }
-   await run(query, 0);
+}
+
+/** Runs what is typed, from the first page. */
+async function execute() {
+   const query = parseInputs();
+   if (query) await run(query, 0);
 }
 
 function cancel() {
    abortController?.abort();
 }
 
+// the limit only changes with a query that runs, so paging and label keep matching the shown result
 function changeLimit(value: number) {
+   const query = parseInputs();
+   if (!query) return;
    limit.value = value;
-   execute();
+   run(query, 0);
 }
 
 function previousPage() {

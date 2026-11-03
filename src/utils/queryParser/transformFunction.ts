@@ -25,7 +25,8 @@ export function toIsoDate(arg: unknown): string {
 
   if (typeof arg !== 'string') throw new Error(`Invalid date: ${JSON.stringify(arg)}`);
 
-  let text = arg.trim();
+  // the shell also accepts a space between date and time
+  let text = arg.trim().replace(/^(\d{4}-\d{2}-\d{2}) (\d)/, '$1T$2');
   // the shell reads a date without a zone as UTC, JavaScript would read a date-time as local time
   if (DATE_ONLY.test(text)) text += 'T00:00:00Z';
   else if (text.includes('T') && !HAS_ZONE.test(text)) text += 'Z';

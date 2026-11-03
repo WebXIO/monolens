@@ -108,6 +108,10 @@ describe('parseMongoQuery — shell functions', () => {
     expect(parseMongoDbQuery('{ at: ISODate("2024-03-01T10:15:30.5") }')).toEqual({ at: { $date: '2024-03-01T10:15:30.500Z' } })
   })
 
+  it('reads a space between date and time like a T', () => {
+    expect(parseMongoDbQuery('{ at: ISODate("2024-03-01 10:15") }')).toEqual({ at: { $date: '2024-03-01T10:15:00.000Z' } })
+  })
+
   it('converts a date with an offset to UTC', () => {
     expect(parseMongoDbQuery('{ at: ISODate("2024-03-01T10:00:00+02:00") }')).toEqual({ at: { $date: '2024-03-01T08:00:00.000Z' } })
   })

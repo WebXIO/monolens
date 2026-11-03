@@ -22,6 +22,7 @@ import { computed, ref, watch, type Ref } from 'vue';
 import { type JsonDocument } from '@/components/documents/models/types';
 import { useColumnSizing, MIN_COL_WIDTH, MAX_COL_WIDTH } from './useColumnSizing';
 import { useFormattedValueCache } from './useFormattedValueCache';
+import { fieldNames } from '@/utils/documentFields';
 
 // v9 only exposes the APIs of registered features; 'auto' sorting picks from the registered sortFns
 export const documentTableFeatures = tableFeatures({
@@ -64,21 +65,7 @@ export function useDocumentTable(documents: Ref<JsonDocument[]>, storageKey: Ref
       [],
    );
 
-   const columnKeys = computed(() => {
-      const keySet = new Set<string>();
-      for (const doc of documents.value) {
-         for (const key of Object.keys(doc)) {
-            keySet.add(key);
-         }
-      }
-      const keys = [...keySet];
-      keys.sort((a, b) => {
-         if (a === '_id') return -1;
-         if (b === '_id') return 1;
-         return a.localeCompare(b);
-      });
-      return keys;
-   });
+   const columnKeys = computed(() => fieldNames(documents.value));
 
    watch(
       [columnKeys, savedColumnOrder],

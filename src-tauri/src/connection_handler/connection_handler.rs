@@ -8,7 +8,8 @@ use crate::{
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
-pub type SharedDriver = Arc<Mutex<Box<dyn DatabaseDriver>>>;
+/// The mongodb client is safe to share, so several commands of one connection run at the same time.
+pub type SharedDriver = Arc<dyn DatabaseDriver>;
 type DriverFactory = Box<dyn Fn(Connection) -> Result<Box<dyn DatabaseDriver>, DriverError> + Send + Sync>;
 
 /// One connected driver per saved connection, created on first use.
@@ -58,20 +59,22 @@ impl ConnectionHandler {
         repository: &dyn ConnectorRepository,
         connection_id: &str,
     ) -> Result<SharedDriver, DriverError> {
-        let mut pool = self.connection_pool.lock().await;
-
-        if let Some(driver) = pool.get(connection_id) {
+        if let Some(driver) = self.connection_pool.lock().await.get(connection_id) {
             return Ok(Arc::clone(driver));
         }
 
+        // loading (keyring) and connecting (dns for srv strings) can take long;
+        // the pool stays unlocked meanwhile, so other connections don't wait
         let connection = Self::load(repository, connection_id).await?;
         let mut driver = (self.factory)(connection)?;
         driver.connect().await?;
+        let shared_driver: SharedDriver = Arc::from(driver);
 
-        let shared_driver: SharedDriver = Arc::new(Mutex::new(driver));
-        pool.insert(connection_id.to_string(), Arc::clone(&shared_driver));
-
-        Ok(shared_driver)
+        // a parallel call may have connected the same connection first; keep that driver
+        let mut pool = self.connection_pool.lock().await;
+        Ok(Arc::clone(
+            pool.entry(connection_id.to_string()).or_insert(shared_driver),
+        ))
     }
 
     /// Connects and lists the databases. The client only reaches the server with this first
@@ -82,7 +85,7 @@ impl ConnectionHandler {
         connection_id: &str,
     ) -> Result<Vec<String>, DriverError> {
         let driver = self.get_or_connect(repository, connection_id).await?;
-        let result = driver.lock().await.list_databases().await;
+        let result = driver.list_databases().await;
 
         if result.is_err() {
             self.disconnect(connection_id).await?;
@@ -91,14 +94,9 @@ impl ConnectionHandler {
         result
     }
 
+    /// Drops the driver; its client closes once running commands finish with it.
     pub async fn disconnect(&self, connection_id: &str) -> Result<(), DriverError> {
-        let mut pool = self.connection_pool.lock().await;
-
-        if let Some(lock) = pool.remove(connection_id) {
-            let mut driver = lock.lock().await;
-            driver.disconnect().await?;
-        }
-
+        self.connection_pool.lock().await.remove(connection_id);
         Ok(())
     }
 
@@ -126,12 +124,10 @@ mod tests {
     #[derive(Default)]
     struct Calls {
         created: AtomicUsize,
-        disconnected: AtomicUsize,
     }
 
     struct FakeDriver {
         connection: Connection,
-        calls: Arc<Calls>,
     }
 
     #[async_trait]
@@ -140,11 +136,6 @@ mod tests {
             if self.connection.name == "refuses" {
                 return Err(DriverError::UriMalformed("bad".into()));
             }
-            Ok(())
-        }
-
-        async fn disconnect(&mut self) -> Result<(), DriverError> {
-            self.calls.disconnected.fetch_add(1, Ordering::SeqCst);
             Ok(())
         }
 
@@ -241,7 +232,7 @@ mod tests {
         let factory_calls = Arc::clone(&calls);
         let handler = ConnectionHandler::with_factory(Box::new(move |connection| {
             factory_calls.created.fetch_add(1, Ordering::SeqCst);
-            Ok(Box::new(FakeDriver { connection, calls: Arc::clone(&factory_calls) }) as Box<dyn DatabaseDriver>)
+            Ok(Box::new(FakeDriver { connection }) as Box<dyn DatabaseDriver>)
         }));
         (handler, calls)
     }
@@ -270,16 +261,32 @@ mod tests {
         handler.disconnect("a").await.unwrap();
 
         assert!(!handler.is_pooled("a").await);
-        assert_eq!(calls.disconnected.load(Ordering::SeqCst), 1);
         assert_eq!(handler.open(&repository, "a").await.unwrap(), vec!["db of Renamed"]);
         assert_eq!(calls.created.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
     async fn disconnecting_an_unknown_connection_does_nothing() {
-        let (handler, calls) = handler();
+        let (handler, _calls) = handler();
         handler.disconnect("nope").await.unwrap();
-        assert_eq!(calls.disconnected.load(Ordering::SeqCst), 0);
+        assert!(!handler.is_pooled("nope").await);
+    }
+
+    #[tokio::test]
+    async fn two_commands_of_one_connection_share_one_driver_at_the_same_time() {
+        let (handler, calls) = handler();
+        let repository = MemoryRepository::default();
+        repository.add("a", "A", None);
+
+        let (first, second) = tokio::join!(
+            handler.get_or_connect(&repository, "a"),
+            handler.get_or_connect(&repository, "a"),
+        );
+
+        // both may build a driver, but the pool keeps one and both callers get it
+        assert!(Arc::ptr_eq(&first.unwrap(), &second.unwrap()));
+        assert!(calls.created.load(Ordering::SeqCst) <= 2);
+        assert_eq!(handler.connection_pool.lock().await.len(), 1);
     }
 
     #[tokio::test]
@@ -332,6 +339,6 @@ mod tests {
         repository.add("a", "A", Some("pw"));
 
         let driver = handler.get_or_connect(&repository, "a").await.unwrap();
-        assert!(driver.lock().await.list_databases().await.is_ok());
+        assert!(driver.list_databases().await.is_ok());
     }
 }

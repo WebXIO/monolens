@@ -77,12 +77,6 @@ impl DatabaseDriver for MongoDbOfficialDriver {
         Ok(())
     }
 
-    async fn disconnect(&mut self) -> Result<(), DriverError> {
-        self.client = None;
-
-        Ok(())
-    }
-
     /// Testing Connection
     /// ## Stages
     /// 1. Initialize

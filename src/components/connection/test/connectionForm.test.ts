@@ -81,6 +81,11 @@ describe("connectionFromFormValues", () => {
     expect(connection.options).toEqual(defaultConnectionOptions());
   });
 
+  it("leaves the authentication database empty by default, so a string's authSource counts", () => {
+    const connection = connectionFromFormValues(values({ mode: "uri", uri: "mongodb://h/?authSource=shop", useAuth: true, username: "u", password: "p" }));
+    expect(connection.authentication.database).toBeNull();
+  });
+
   it("sends credentials only with authentication", () => {
     expect(connectionFromFormValues(values({ useAuth: true, username: " ada ", password: "pw", authDatabase: "" })).authentication).toEqual({
       kind: AuthenticationKind.BASIC,
@@ -104,7 +109,7 @@ describe("formValuesFromConnection", () => {
 
   it("fills the uri mode and the loaded password", () => {
     const form = formValuesFromConnection(saved, "pw");
-    expect(form).toMatchObject({ name: "Atlas", mode: "uri", uri: "mongodb+srv://c.example.net", useAuth: true, username: "ada", password: "pw", authDatabase: "admin" });
+    expect(form).toMatchObject({ name: "Atlas", mode: "uri", uri: "mongodb+srv://c.example.net", useAuth: true, username: "ada", password: "pw", authDatabase: "" });
   });
 
   it("round-trips a host connection with options", () => {

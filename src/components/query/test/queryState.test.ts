@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fieldNames, pageInfo, parseQueryTexts } from "../queryState";
+import { pageInfo, parseQueryTexts } from "../queryState";
 
 describe("parseQueryTexts", () => {
   it("parses all three inputs", () => {
@@ -23,16 +23,6 @@ describe("parseQueryTexts", () => {
     expect(() => parseQueryTexts({ filter: "5", sort: "", projection: "" })).toThrow("Filter: must be an object like { field: value }");
     expect(() => parseQueryTexts({ filter: "{}", sort: "[1]", projection: "" })).toThrow(/^Sort: must be an object/);
     expect(() => parseQueryTexts({ filter: "{}", sort: "", projection: "null" })).toThrow(/^Projection: must be an object/);
-  });
-});
-
-describe("fieldNames", () => {
-  it("collects the fields of every document, _id first", () => {
-    expect(fieldNames([{ name: "a", _id: 1 }, { age: 3 }, { city: "x", name: "b" }])).toEqual(["_id", "age", "city", "name"]);
-  });
-
-  it("is empty for no documents", () => {
-    expect(fieldNames([])).toEqual([]);
   });
 });
 

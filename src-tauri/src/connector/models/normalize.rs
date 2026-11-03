@@ -4,6 +4,16 @@ use crate::connector::models::{
     uri::{is_connection_string, split_uri_credentials},
 };
 
+/// `db.local:27018` typed into the host field: the host and the port after it.
+pub fn split_host_port(host: &str) -> Option<(&str, u16)> {
+    let (name, port) = host.rsplit_once(':')?;
+    // an IPv6 address has more colons and stays as it is
+    if name.is_empty() || name.contains(':') {
+        return None;
+    }
+    port.parse().ok().map(|port| (name, port))
+}
+
 /// Checks a connection before it is stored and moves credentials out of a connection string:
 /// the username into the authentication, the password to where the repository keeps passwords.
 /// Credentials typed into the form win over the ones in the string.
@@ -26,6 +36,9 @@ pub fn normalize(
                 return Err(String::from(
                     "Enter mongodb:// and mongodb+srv:// addresses as a connection string, not as a host.",
                 ));
+            }
+            if split_host_port(&host).is_some() {
+                return Err(String::from("Enter the port in the port field, not after the host."));
             }
             if port == 0 {
                 return Err(String::from("The port must be between 1 and 65535."));
@@ -96,6 +109,22 @@ mod tests {
     fn refuses_a_connection_string_in_the_host_field() {
         let err = normalize("n", ConnectionTarget::Host { host: "mongodb+srv://c.example.net".into(), port: 27017 }, none()).unwrap_err();
         assert!(err.contains("connection string"));
+    }
+
+    #[test]
+    fn refuses_a_port_after_the_host() {
+        let err = normalize("n", ConnectionTarget::Host { host: "db.local:27018".into(), port: 27017 }, none()).unwrap_err();
+        assert!(err.contains("port field"));
+    }
+
+    #[test]
+    fn splits_host_and_port_but_leaves_ipv6_and_names_alone() {
+        assert_eq!(split_host_port("db.local:27018"), Some(("db.local", 27018)));
+        assert_eq!(split_host_port("db.local"), None);
+        assert_eq!(split_host_port("::1"), None);
+        assert_eq!(split_host_port("fe80::1:27017"), None);
+        assert_eq!(split_host_port(":27017"), None);
+        assert_eq!(split_host_port("h:port"), None);
     }
 
     #[test]

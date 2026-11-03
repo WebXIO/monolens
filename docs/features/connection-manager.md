@@ -26,13 +26,13 @@ A user saves the MongoDB servers they work with as connections: by host and port
   - Name, then a switch between "Host and port" and "Connection string".
   - Host mode: host, port, and collapsible options (TLS with CA file and "allow invalid certificates", replica set, timeout in seconds). The options open by themselves when a connection has any.
   - Connection string mode: one field. A hint says that a username and password in the string are moved out on save.
-  - "Use Authentication" with username, password (show/hide toggle) and auth database (default `admin`; for a string, empty means the string's `authSource`).
+  - "Use Authentication" with username, password (show/hide toggle) and auth database. Empty means `admin` for a host, and the string's `authSource` (else `admin`) for a connection string.
   - TanStack Form validates the values with a zod schema (`connectionForm.ts`) when the user tests or saves, and shows what is wrong under each field: a missing name or host, a host that is really a connection string, a port outside 1–65535, a timeout outside 1–3600, a string without `mongodb://` or `mongodb+srv://`, missing username or password with authentication.
   - Testing is optional, see [connection-test.md](connection-test.md). In edit mode the dialog loads the stored password.
 
 **Saving, editing, deleting**
 
-- Before storing, Rust checks the connection again (`models/normalize.rs`) and moves credentials out of a connection string: the username into `authentication`, the password into the keyring (`models/uri.rs`). A refusal is `RepositoryError::Invalid`, and the UI shows its text, e.g. "Enter mongodb:// and mongodb+srv:// addresses as a connection string, not as a host."
+- Before storing, and before a test, Rust checks the connection again (`models/normalize.rs`; it also refuses `host:port` in the host field) and moves credentials out of a connection string: the username into `authentication`, the password into the keyring (`models/uri.rs`). A refusal is `RepositoryError::Invalid`, and the UI shows its text, e.g. "Enter mongodb:// and mongodb+srv:// addresses as a connection string, not as a host."
 - Create calls `create_connection` with the connection without id; Rust creates the id and returns the stored connection, which the store adds.
 - Edit calls `update_connection(id, connection)`. With `BASIC` and a password, Rust writes the password; with `NONE` it deletes it; the file never gets one. The Rust core drops the connected driver of that connection; the store reloads the list and an open connection reconnects with the new settings.
 - Delete asks with the app's confirmation dialog (`useConfirm`), disconnects an open connection (its tabs close), then calls `delete_connection`, which removes file entry, keyring entry and driver.
@@ -40,7 +40,7 @@ A user saves the MongoDB servers they work with as connections: by host and port
 **Storage**
 
 - `FileRepository` keeps `<app config dir>/connections.json` (on Linux `~/.config/org.monolens/connections.json`) as `{ "version": 2, "connections": { "<id>": { … } } }`. Every call reads the whole file, every change writes it.
-- A version 1 file (until 2026-11-03: the host in `uri`, plus `port` and an unused `connectionType`) is migrated on the first load (`repositories/migrations.rs`) and kept next to it as `connections.v1.json`. A version 1 `uri` that is a connection string becomes a string target with its password moved to the keyring.
+- A version 1 file (until 2026-11-03: the host in `uri`, plus `port` and an unused `connectionType`) is migrated on the first load (`repositories/migrations.rs`) and kept next to it as `connections.v1.json`. A version 1 `uri` that is a connection string becomes a string target with its password moved to the keyring; a `host:port` loses the port after the host, the port field counted before too.
 - Another version, or no version, is an error.
 
 ## Decisions
@@ -75,6 +75,7 @@ A user saves the MongoDB servers they work with as connections: by host and port
 | 2026-11-03 | Dialog with both modes and options, form logic in `connectionForm.ts`, confirmation dialog for deleting | `29aceb2` |
 | 2026-11-03 | Several connections at once: the dropdown opens further connections, edit from the sidebar | `afd84c7` |
 | 2026-11-03 | Loaded once at start; reloaded from Rust after an edit | `d5ff9e3` |
+| 2026-11-03 | Review fixes: the auth database stays empty by default (a filled `admin` overrode a string's `authSource`), the edit dialog fills on every opening, `host:port` refused, the test normalizes like saving | `fix: findings of the review` |
 
 ## Limits and open points
 

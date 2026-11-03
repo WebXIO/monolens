@@ -5,6 +5,7 @@ use crate::connector::models::{
     authentication::{AuthenticationKind, AuthenticationOptions},
     connection::{Connection, ConnectionTarget, ConnectorKind},
     options::ConnectionOptions,
+    normalize::split_host_port,
     uri::{is_connection_string, split_uri_credentials},
 };
 use crate::connector::repositories::storage_wrapper::{ConnectionStorage, STORAGE_VERSION};
@@ -58,7 +59,9 @@ pub fn migrate_v1(value: &Value) -> Result<(ConnectionStorage, Vec<MovedPassword
             }
             ConnectionTarget::Uri { uri: split.uri }
         } else {
-            ConnectionTarget::Host { host: uri.to_string(), port }
+            // version 1 accepted "host:port" in the host field; the port field won
+            let host = split_host_port(uri).map_or(uri, |(name, _)| name);
+            ConnectionTarget::Host { host: host.to_string(), port }
         };
 
         storage.connections.insert(
@@ -142,6 +145,12 @@ mod tests {
         })))
         .unwrap();
         assert_eq!(storage.connections["a"].authentication.password, None);
+    }
+
+    #[test]
+    fn takes_a_port_out_of_the_host_and_keeps_the_port_field() {
+        let (storage, _) = migrate_v1(&v1(json!({ "a": { "name": "N", "uri": "db.local:27018", "port": 27019 } }))).unwrap();
+        assert_eq!(storage.connections["a"].target, ConnectionTarget::Host { host: "db.local".into(), port: 27019 });
     }
 
     #[test]
