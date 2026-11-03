@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { Database, Plus, Pencil, Trash2, Loader2 } from '@lucide/vue';
 import Button from '@/components/ui/button/Button.vue';
 import ConnectionDialog from './ConnectionDialog.vue';
@@ -15,10 +15,6 @@ const { confirm } = useConfirm();
 const dialogOpen = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
 const editingConnection = ref<Connection | undefined>();
-
-onMounted(() => {
-  store.loadConnections();
-});
 
 function openCreateDialog() {
   logger.debug('openCreateDialog called');
@@ -54,9 +50,6 @@ async function handleDelete(connection: Connection) {
   }
 }
 
-function handleSaved(_connection: Connection) {
-  store.loadConnections();
-}
 </script>
 <template>
   <div class="flex flex-col items-center justify-center min-h-[60vh] p-8">
@@ -139,7 +132,6 @@ function handleSaved(_connection: Connection) {
       v-model:open="dialogOpen"
       :mode="dialogMode"
       :connection="editingConnection"
-      @saved="handleSaved"
     />
   </div>
 </template>

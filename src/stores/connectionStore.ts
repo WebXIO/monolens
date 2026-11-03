@@ -95,13 +95,8 @@ export const useConnectionStore = defineStore('connection', () => {
       toast.error(extractErrorMessage(result.error));
       return false;
     }
-    const index = connections.value.findIndex(c => c.id === id);
-    if (index === -1) {
-      toast.error(`Connection with id ${id} not found.`);
-      return false;
-    }
-    // the stored connection never holds the password
-    connections.value[index] = { ...connection, authentication: { ...connection.authentication, password: null } };
+    // what the Rust core stored differs from the form: no password, credentials moved out of a connection string
+    await loadConnections();
 
     // the Rust core dropped the driver; an open connection reconnects with the new settings
     if (isConnected(id)) {

@@ -31,9 +31,6 @@ function handleAddNew() {
   dialogOpen.value = true;
 }
 
-function handleSaved(_connection: Connection) {
-  store.loadConnections();
-}
 </script>
 
 <template>
@@ -83,6 +80,5 @@ function handleSaved(_connection: Connection) {
   <ConnectionDialog
     v-model:open="dialogOpen"
     mode="create"
-    @saved="handleSaved"
   />
 </template>

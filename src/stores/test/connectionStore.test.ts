@@ -120,11 +120,12 @@ describe("connectionStore with several connections", () => {
   const saved = (id: string) => ({ ...form, id, name: `Server ${id}` });
 
   /** Answers start_connect/await_task_result with databases named after the connection. */
-  function mockServers(fail: Record<string, unknown> = {}) {
+  function mockServers(fail: Record<string, unknown> = {}, stored: unknown[] = []) {
     const calls: { cmd: string; args: Record<string, any> }[] = [];
     let collectionsCalls = 0;
     mockBackend((cmd, args) => {
       calls.push({ cmd, args });
+      if (cmd === "get_connections") return stored;
       if (cmd === "start_connect") return `task:${args.connectionId}`;
       if (cmd === "await_task_result") {
         const connectionId = String(args.id).replace("task:", "");
@@ -260,8 +261,9 @@ describe("connectionStore with several connections", () => {
     expect(calls.filter((c) => c.cmd === "list_collections")).toHaveLength(0);
   });
 
-  it("reconnects an open connection after an edit and keeps no password", async () => {
-    const calls = mockServers();
+  it("reloads what the rust core stored after an edit and reconnects an open connection", async () => {
+    // the rust core keeps no password and takes credentials out of a connection string
+    const calls = mockServers({}, [{ ...saved("a"), name: "Renamed", target: { kind: "Uri", uri: "mongodb://h" } }]);
     const store = await storeWith("a");
     await store.connectTo(saved("a"));
     const edited = { ...saved("a"), name: "Renamed", authentication: { ...form.authentication, kind: AuthenticationKind.BASIC, username: "u", password: "secret" } };
@@ -269,7 +271,8 @@ describe("connectionStore with several connections", () => {
     expect(await store.updateConnection("a", edited)).toBe(true);
 
     expect(store.getConnection("a")?.name).toBe("Renamed");
-    expect(store.getConnection("a")?.authentication.password).toBeNull();
+    expect(store.getConnection("a")?.target).toEqual({ kind: "Uri", uri: "mongodb://h" });
+    expect(calls.filter((c) => c.cmd === "get_connections")).toHaveLength(1);
     expect(calls.filter((c) => c.cmd === "start_connect")).toHaveLength(2);
   });
 });
