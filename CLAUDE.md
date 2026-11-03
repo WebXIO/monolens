@@ -54,7 +54,7 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 ### Frontend (`src`)
 
 - `main.ts` calls `registerDomains` (creates `CommandRegistry` and `ConnectionServiceIPC` once and provides them) and then `registerPlugins` (Pinia, shortcuts). Read a service with `useDomain(Class)` in components, or `useDomain(Class, app)` in plugins.
-- IPC goes through `ConnectionServiceIPC`: CRUD returns `Result<T>` via `tryCatch`, slow commands use `abortableInvoke` with an `AbortSignal`. `TabViewQuery` still calls `invoke` directly; new code uses the service.
+- IPC goes through `ConnectionServiceIPC`: CRUD returns `Result<T>` via `tryCatch`, slow commands use `abortableInvoke` with an `AbortSignal`. Components don't call `invoke` themselves.
 - Stores are Pinia setup stores (`defineStore('x', () => {...})`). `connectionStore` keeps the saved connections and one session per open connection (`sessions`: status `connecting`/`connected`, databases, cached collections); several connections can be open at once, and the grid gives way once one is connected. `disconnect(id)` closes that connection's tabs. `tabsStore` keeps the tabs (`{ connectionId, database, collection }` as context), the active tab and the history.
 - Errors reach the user as `toast.error(extractErrorMessage(e))` (`vue-sonner`). Don't build error boxes.
 - Ask before destructive actions with `await useConfirm().confirm({ title, description, confirmLabel, destructive })`; `ConfirmDialog` in `App.vue` shows it. Never the browser's `confirm()`.

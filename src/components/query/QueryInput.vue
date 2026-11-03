@@ -21,11 +21,12 @@ import { useMongoAutoComplete } from '@/domains/mongo';
 import { autocompletion } from "@codemirror/autocomplete";
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from 'codemirror';
+import { placeholder as placeholderExtension } from '@codemirror/view';
 import { X } from '@lucide/vue';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-const props = defineProps<{ collectionProperties: string[] }>();
+const props = defineProps<{ collectionProperties: string[]; placeholder?: string }>();
 const query = defineModel<string>({ required: true });
 
 const editorRef = useTemplateRef('query-editor')
@@ -39,6 +40,7 @@ onMounted(() => {
       parent: editorRef.value as Element,
       extensions: [
          oneDark,
+         ...(props.placeholder ? [placeholderExtension(props.placeholder)] : []),
          autocompletion({
             override: [mongoAutoComplete.autocomplete],
             activateOnTyping: true
