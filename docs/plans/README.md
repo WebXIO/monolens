@@ -8,6 +8,7 @@ A plan names the GitHub issues it covers.
 
 | Plan | What | Status |
 |---|---|---|
+| [working-state.md](working-state.md) | Fix the bugs found on 2026-11-03, complete querying (paging, count, sort, projection), several connections at once, connection strings with options | Agreed 2026-11-03, being built on `fix/working_state` |
 
 ## Implemented
 
