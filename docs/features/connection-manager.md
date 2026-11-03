@@ -23,7 +23,7 @@ A user saves the MongoDB servers they work with as connections: a name, host, po
 - `ConnectionGrid` is the start screen while no connection is active. It shows one card per connection with name and `host:port`. Edit and delete appear on hover, and the card has a Connect button, which turns into Cancel while that connection connects. The last card adds a connection.
 - `ConnectionSelector` sits in the header while a connection is active. Its dropdown lists the connections with a check next to the active one, switches to another one and has "Add new connection…". While a connection connects, an X next to it cancels.
 - `ConnectionDialog` creates and edits:
-  - Fields: name, host, port, a "Use Authentication" checkbox, and with it username, password (with a show/hide toggle) and auth database (default `admin`). vee-validate with a zod schema checks name, host and port.
+  - Fields: name, host, port, a "Use Authentication" checkbox, and with it username, password (with a show/hide toggle) and auth database (default `admin`). TanStack Form validates the values with a zod schema when the user tests or saves (name and host required, port 1 to 65535); errors appear under the fields.
   - Test Connection and Create/Save stay disabled until every field shown is filled, so with authentication the password is required. Save is also disabled while a test runs.
   - Testing is optional, see [connection-test.md](connection-test.md).
   - Closing the dialog resets the form and the test state.

@@ -54,6 +54,7 @@ Needs Rust and the Tauri prerequisites (`README.md`). For a manual check run a l
 - IPC goes through `ConnectionServiceIPC`: CRUD returns `Result<T>` via `tryCatch`, slow commands use `abortableInvoke` with an `AbortSignal`. `TabViewQuery` and `AppSidebar` still call `invoke` directly; new code uses the service.
 - Stores are Pinia setup stores (`defineStore('x', () => {...})`): `connectionStore` (connections, active connection, databases, test state), `tabsStore` (tabs, active tab, history).
 - Errors reach the user as `toast.error(extractErrorMessage(e))` (`vue-sonner`). Don't build error boxes.
+- Forms use TanStack Form (`@tanstack/vue-form`) with a zod 4 schema as validator (Standard Schema, no adapter) and shadcn-vue's `Field` components (`FieldLabel`, `FieldError`). Bind inputs through `update:model-value`. `ConnectionDialog.vue` is the example.
 - Log with `useLogger('<Context>')`, never `console.*`. Never log credentials, not even at `trace`.
 - Models live in `src/domains/<area>/models` with an `index.ts` barrel. TypeScript models mirror the Rust structs: camelCase fields (`#[serde(rename_all = "camelCase")]`) and enum values equal to the Rust variant names. Change both sides together.
 - Shortcuts: add a command id in `domains/shortcuts/models/commands.ts`, register it in `config/commands.ts`, bind it in `config/default-binding.ts`.
