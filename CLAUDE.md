@@ -35,7 +35,7 @@ cd src-tauri && MONGODB_TEST_HOST=127.0.0.1 MONGODB_TEST_PORT=27017 MONGODB_TEST
 cd src-tauri && cargo clippy
 ```
 
-Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`. Without them no Rust code compiles, but an old `target/` can make `cargo check` look fine. For a manual check run a local MongoDB, e.g. `docker run --rm -p 27017:27017 mongo:8`, and connect to `localhost:27017` without authentication.
+Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`. Without them no Rust code compiles, but an old `target/` can make `cargo check` look fine. For a manual check run a local MongoDB, e.g. `docker run --rm -p 27017:27017 mongo:8.2`, and connect to `localhost:27017` without authentication.
 
 ## Architecture
 
@@ -95,7 +95,7 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 - Feature branches come off `develop` and are merged through GitHub pull requests into `develop`. Names so far: `feat/<topic>` and, more recently, `feat_<topic>`, `refactor_<topic>`. `develop` goes to `main` by a pull request from time to time.
 - Before any push, run the `/code-review` skill on the branch and fix or settle its findings.
 - Commit messages are conventional and lowercase: `feat: …`, `fix: …`, `refactor: …`, `chore: …`, `docs: …`, `test: …`. The body explains why and ends with `refers to #<issue>` where an issue exists. Commit messages name no people. Do not add Claude co-author trailers.
-- CI (`.github/workflows/ci.yml`) runs `pnpm test:frontend --run`, `pnpm build`, `cargo test` and `cargo clippy` on Linux, macOS and Windows for pushes to `develop` and `main` and for every pull request, and the integration tests on Linux against a `mongo:8` service container. Run them locally before pushing anyway, the integration tests when the driver changed. A new integration test that needs data or users adds them to the job's "Create the test user and data" step.
+- CI (`.github/workflows/ci.yml`) runs `pnpm test:frontend --run`, `pnpm build`, `cargo test` and `cargo clippy` on Linux, macOS and Windows for pushes to `develop` and `main` and for every pull request, and the integration tests on Linux against a `mongo:8.2` service container. Run them locally before pushing anyway, the integration tests when the driver changed. A new integration test that needs data or users adds them to the job's "Create the test user and data" step.
 
 ## Gotchas
 
@@ -110,6 +110,7 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 - `cargo clippy` reports 2 warnings, `module_inception` for `connection_handler/connection_handler.rs` and `task_manager/task_manager.rs`. Keep it at that.
 - Change the pinned pnpm with `pnpm self-update <version>` inside the repo, never by hand, or `--frozen-lockfile` fails (pnpm records its version in the lockfile).
 - The app is only run on Linux. macOS and Windows are compiled and tested in CI, but nobody has started the app there; keep platform code (`cfg!(target_os = …)`, `isMacPlatform`) small and say in the docs when something is unchecked on a platform.
+- MongoDB 8.0 and 8.3 (`mongo:8` is 8.3 now) refuse to start on Linux 6.19 and newer (SERVER-121912), which includes this machine and the GitHub runners; `mongo:8.2` runs.
 - `gh` is not installed on this machine. The repo is public: read issues and pull requests through `https://api.github.com/repos/WebXIO/monolens/issues` and `/pulls`.
 
 ## graphify

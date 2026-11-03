@@ -80,7 +80,8 @@ jobs:
     timeout-minutes: 30
     services:
       mongo:
-        image: mongo:8
+        # 8.0 and 8.3 refuse to start on Linux 6.19 and newer (SERVER-121912), 8.2 runs
+        image: mongo:8.2
         env:
           MONGO_INITDB_ROOT_USERNAME: root
           MONGO_INITDB_ROOT_PASSWORD: ci-root-password
