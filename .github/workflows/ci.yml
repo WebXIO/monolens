@@ -11,10 +11,11 @@ on:
 permissions:
   contents: read
 
-# a new push to the same branch or pull request makes the running check pointless
+# a new push to a pull request makes its running check pointless; every commit on
+# develop and main keeps its own run
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -28,6 +29,11 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      # git on the Windows runner would check out CRLF line endings
+      - name: Keep LF line endings
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v7
 
       - name: Install the Tauri system packages
