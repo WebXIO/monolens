@@ -14,5 +14,5 @@ pub async fn update_connection(
         .connection_repository
         .update(&id, &connection)
         .await
-        .map_err(|e| CommandError::new(e.to_string(), "repository", "Failed to update connection."))
+        .map_err(|e| CommandError::from_repository(e, "Failed to update connection."))
 }

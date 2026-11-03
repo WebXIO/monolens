@@ -1,13 +1,23 @@
 use serde::{Deserialize, Serialize};
 
 use crate::connector::models::{
-    authentication::AuthenticationOptions, connection_type::ConnectionType, create_connection::CreateConnection,
+    authentication::AuthenticationOptions, create_connection::CreateConnection,
+    options::ConnectionOptions,
 };
 use uuid::Uuid;
 
-#[derive(Serialize, Debug, Deserialize, Clone)]
+#[derive(Serialize, Debug, Deserialize, Clone, PartialEq)]
 pub enum ConnectorKind {
     MongoDb,
+}
+
+/// Where the server is: host and port with option fields, or a connection string.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(tag = "kind")]
+pub enum ConnectionTarget {
+    Host { host: String, port: u16 },
+    /// `mongodb://` or `mongodb+srv://`, stored without user info
+    Uri { uri: String },
 }
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
@@ -15,25 +25,11 @@ pub enum ConnectorKind {
 pub struct Connection {
     pub id: String,
     pub name: String,
-    pub uri: String,
-    pub port: u16,
     pub connector: ConnectorKind,
-    pub connection_type: ConnectionType,
+    pub target: ConnectionTarget,
     pub authentication: AuthenticationOptions,
-}
-
-impl Default for Connection {
-    fn default() -> Self {
-        Connection {
-            id: Uuid::new_v4().to_string(),
-            name: String::new(),
-            uri: String::new(),
-            port: 27017,
-            connector: ConnectorKind::MongoDb,
-            connection_type: ConnectionType::Standalone,
-            authentication: AuthenticationOptions::default(),
-        }
-    }
+    #[serde(default)]
+    pub options: ConnectionOptions,
 }
 
 impl From<CreateConnection> for Connection {
@@ -41,25 +37,10 @@ impl From<CreateConnection> for Connection {
         Connection {
             id: Uuid::new_v4().to_string(),
             name: entity.name,
-            uri: entity.uri,
-            authentication: entity.authentication,
-            connection_type: entity.connection_type,
             connector: entity.connector,
-            port: entity.port
-        }
-    }
-}
-
-impl Connection {
-    pub fn new(value: Connection) -> Self {
-        Connection {
-            id: Uuid::new_v4().to_string(),
-            name: value.name,
-            uri: value.uri,
-            port: value.port,
-            connector: value.connector,
-            connection_type: value.connection_type,
-            authentication: value.authentication,
+            target: entity.target,
+            authentication: entity.authentication,
+            options: entity.options,
         }
     }
 }

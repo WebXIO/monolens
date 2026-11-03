@@ -8,8 +8,10 @@ use crate::connector::commands::error::{CredentialError, RepositoryError};
 use crate::connector::models::authentication::AuthenticationKind;
 use crate::connector::models::connection::Connection;
 use crate::connector::models::create_connection::CreateConnection;
+use crate::connector::models::normalize::normalize;
 use crate::connector::repositories::connector_repository::ConnectorRepository;
 use crate::connector::repositories::credentials::credential_store::CredentialStore;
+use crate::connector::repositories::migrations::migrate_v1;
 use crate::connector::repositories::storage_wrapper::{ConnectionStorage, STORAGE_VERSION};
 
 pub struct FileRepository {
@@ -36,14 +38,36 @@ impl FileRepository {
             return Ok(ConnectionStorage::new());
         }
 
-        let storage: ConnectionStorage = serde_json::from_str(&content)?;
+        let value: serde_json::Value = serde_json::from_str(&content)?;
+        let version = value.get("version").and_then(serde_json::Value::as_u64);
 
-        if storage.version != STORAGE_VERSION {
-            return Err(RepositoryError::MigrationError {
-                from: storage.version,
+        match version {
+            Some(v) if v == u64::from(STORAGE_VERSION) => Ok(serde_json::from_value(value)?),
+            Some(1) => self.migrate_from_v1(&content, &value).await,
+            other => Err(RepositoryError::MigrationError {
+                from: other.and_then(|v| u32::try_from(v).ok()).unwrap_or(0),
                 to: STORAGE_VERSION,
-            });
+            }),
         }
+    }
+
+    async fn migrate_from_v1(
+        &self,
+        content: &str,
+        value: &serde_json::Value,
+    ) -> Result<ConnectionStorage, RepositoryError> {
+        let (storage, moved) = migrate_v1(value)?;
+
+        for password in moved {
+            self.credentials
+                .set_password(&password.connection_id, &password.password)
+                .await?;
+        }
+
+        // the old file stays next to the new one, in case the migration loses something
+        fs::write(self.base_path.with_file_name("connections.v1.json"), content).await?;
+        self.write_storage(&storage).await?;
+        log::info!("Migrated connections.json from version 1 to {}", STORAGE_VERSION);
 
         Ok(storage)
     }
@@ -72,6 +96,12 @@ impl ConnectorRepository for FileRepository {
         mut connection: CreateConnection,
     ) -> Result<Connection, RepositoryError> {
         let mut storage = self.load_storage().await?;
+
+        let (target, authentication) =
+            normalize(&connection.name, connection.target, connection.authentication)
+                .map_err(RepositoryError::Invalid)?;
+        connection.target = target;
+        connection.authentication = authentication;
 
         let password = connection.authentication.password.take();
         let new_connection = Connection::from(connection);
@@ -114,6 +144,16 @@ impl ConnectorRepository for FileRepository {
             .get_mut(id)
             .ok_or_else(|| RepositoryError::NotFound(id.to_string()))?;
 
+        let (target, authentication) = normalize(
+            &connection.name,
+            connection.target.clone(),
+            connection.authentication.clone(),
+        )
+        .map_err(RepositoryError::Invalid)?;
+        let mut connection = connection.clone();
+        connection.target = target;
+        connection.authentication = authentication;
+
         match connection.authentication.kind {
             AuthenticationKind::BASIC => {
                 // without a new password the stored one stays
@@ -126,7 +166,7 @@ impl ConnectorRepository for FileRepository {
             }
         }
 
-        let mut clean = connection.clone();
+        let mut clean = connection;
         clean.id = id.to_string();
         clean.authentication.password = None;
 
@@ -173,8 +213,8 @@ impl ConnectorRepository for FileRepository {
 mod tests {
     use super::*;
     use crate::connector::models::authentication::AuthenticationOptions;
-    use crate::connector::models::connection::ConnectorKind;
-    use crate::connector::models::connection_type::ConnectionType;
+    use crate::connector::models::connection::{ConnectionTarget, ConnectorKind};
+    use crate::connector::models::options::ConnectionOptions;
     use crate::connector::repositories::credentials::credential_store::memory::MemoryCredentialStore;
 
     /// A directory of its own per test, removed again when the test ends.
@@ -208,10 +248,9 @@ mod tests {
     fn create(password: Option<&str>) -> CreateConnection {
         CreateConnection {
             name: "Local".into(),
-            uri: "localhost".into(),
-            port: 27017,
             connector: ConnectorKind::MongoDb,
-            connection_type: ConnectionType::Standalone,
+            target: ConnectionTarget::Host { host: "localhost".into(), port: 27017 },
+            options: ConnectionOptions::default(),
             authentication: AuthenticationOptions {
                 kind: if password.is_some() {
                     AuthenticationKind::BASIC
@@ -249,7 +288,7 @@ mod tests {
         assert_eq!(store.stored(&saved.id).as_deref(), Some("s3cr3t"));
         let file = std::fs::read_to_string(dir.file()).unwrap();
         assert!(!file.contains("s3cr3t"));
-        assert!(file.contains("\"version\": 1"));
+        assert!(file.contains("\"version\": 2"));
         assert_eq!(repository.get(&saved.id).await.unwrap().name, "Local");
     }
 
@@ -433,6 +472,81 @@ mod tests {
         assert!(matches!(
             repository.list().await,
             Err(RepositoryError::Serialization(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn save_moves_credentials_out_of_a_connection_string() {
+        let (dir, store, repository) = setup();
+        let mut connection = create(None);
+        connection.target = ConnectionTarget::Uri { uri: "mongodb://ada:s3cr3t@h1,h2/?replicaSet=rs".into() };
+
+        let saved = repository.save(connection).await.unwrap();
+
+        assert_eq!(saved.target, ConnectionTarget::Uri { uri: "mongodb://h1,h2/?replicaSet=rs".into() });
+        assert_eq!(saved.authentication.kind, AuthenticationKind::BASIC);
+        assert_eq!(saved.authentication.username.as_deref(), Some("ada"));
+        assert_eq!(store.stored(&saved.id).as_deref(), Some("s3cr3t"));
+        assert!(!std::fs::read_to_string(dir.file()).unwrap().contains("s3cr3t"));
+    }
+
+    #[tokio::test]
+    async fn save_refuses_an_invalid_connection_with_its_reason() {
+        let (dir, _store, repository) = setup();
+        let mut connection = create(None);
+        connection.target = ConnectionTarget::Host { host: "mongodb://h".into(), port: 27017 };
+
+        let result = repository.save(connection).await;
+
+        assert!(matches!(result, Err(RepositoryError::Invalid(reason)) if reason.contains("connection string")));
+        assert!(!dir.file().exists());
+    }
+
+    #[tokio::test]
+    async fn update_refuses_an_invalid_connection() {
+        let (_dir, _store, repository) = setup();
+        let saved = repository.save(create(None)).await.unwrap();
+        let mut changed = saved.clone();
+        changed.name = "  ".into();
+        assert!(matches!(repository.update(&saved.id, &changed).await, Err(RepositoryError::Invalid(_))));
+    }
+
+    #[tokio::test]
+    async fn a_version_1_file_is_migrated_written_back_and_kept_as_backup() {
+        let (dir, store, repository) = setup();
+        let v1 = r#"{ "version": 1, "connections": {
+            "a": { "id": "a", "name": "Local", "uri": "localhost", "port": 27017, "connector": "MongoDb",
+                   "connectionType": "Standalone",
+                   "authentication": { "kind": "BASIC", "username": "root", "password": null, "database": "admin" } },
+            "b": { "id": "b", "name": "Atlas", "uri": "mongodb+srv://ada:pw@c.example.net", "port": 27017,
+                   "connector": "MongoDb", "connectionType": "DnsSeedList",
+                   "authentication": { "kind": "NONE", "username": null, "password": null, "database": null } } } }"#;
+        std::fs::write(dir.file(), v1).unwrap();
+        store.insert("a", "kept");
+
+        let mut connections = repository.list().await.unwrap();
+        connections.sort_by(|x, y| x.id.cmp(&y.id));
+
+        assert_eq!(connections[0].target, ConnectionTarget::Host { host: "localhost".into(), port: 27017 });
+        assert_eq!(connections[1].target, ConnectionTarget::Uri { uri: "mongodb+srv://c.example.net".into() });
+        assert_eq!(store.stored("a").as_deref(), Some("kept"));
+        assert_eq!(store.stored("b").as_deref(), Some("pw"));
+        let file = std::fs::read_to_string(dir.file()).unwrap();
+        assert!(file.contains("\"version\": 2"));
+        assert!(!file.contains("connectionType"));
+        assert_eq!(std::fs::read_to_string(dir.0.join("connections.v1.json")).unwrap(), v1);
+
+        // the second load reads version 2 and doesn't migrate again
+        assert_eq!(repository.list().await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_file_without_version_is_refused() {
+        let (dir, _store, repository) = setup();
+        std::fs::write(dir.file(), r#"{ "connections": {} }"#).unwrap();
+        assert!(matches!(
+            repository.list().await,
+            Err(RepositoryError::MigrationError { from: 0, .. })
         ));
     }
 }

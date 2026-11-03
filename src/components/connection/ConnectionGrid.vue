@@ -4,7 +4,7 @@ import { Database, Plus, Pencil, Trash2, Loader2 } from '@lucide/vue';
 import Button from '@/components/ui/button/Button.vue';
 import ConnectionDialog from './ConnectionDialog.vue';
 import { useConnectionStore } from '@/stores/connectionStore';
-import type { Connection } from '@/domains/connections';
+import { describeTarget, type Connection } from '@/domains/connections';
 import { useLogger } from '@/composables/useLogger';
 
 const logger = useLogger("ConnectionGrid");
@@ -80,7 +80,7 @@ function handleSaved(_connection: Connection) {
           <div class="flex-1 min-w-0">
             <h3 class="font-medium truncate">{{ connection.name }}</h3>
             <p class="text-sm text-muted-foreground truncate">
-              {{ connection.uri }}:{{ connection.port }}
+              {{ describeTarget(connection.target) }}
             </p>
           </div>
           

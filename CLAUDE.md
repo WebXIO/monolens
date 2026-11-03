@@ -29,7 +29,8 @@ pnpm build                      # vue-tsc --noEmit (includes the tests), then vi
 pnpm tauri build                # installers; runs pnpm build first
 
 cd src-tauri && cargo check
-cd src-tauri && cargo test      # no Rust tests exist yet
+cd src-tauri && cargo test      # unit tests
+cd src-tauri && MONGODB_TEST_HOST=127.0.0.1 MONGODB_TEST_PORT=27017 MONGODB_TEST_USER=root MONGODB_TEST_PASSWORD=… cargo test -- --ignored   # integration tests against a real MongoDB
 cd src-tauri && cargo clippy
 ```
 
@@ -46,7 +47,8 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 - Credentials: `get_connections`/`get_connection` never return a password. A command that talks to MongoDB loads it with `ConnectorRepository::hydrate` right before use. The only command that hands a password to the UI is `get_connection_password` (edit dialog). Passwords go through the `CredentialStore` trait: `CredentialService` is the OS keyring, `MemoryCredentialStore` (tests only) keeps them in memory and can be told to fail.
 - `ConnectionHandler.get_or_connect` keeps one driver per connection id for the life of the process. Nothing removes it yet (see Gotchas).
 - `DatabaseDriver` is the seam for database work. Add a method to the trait, implement it in `MongoDbOfficialDriver`, then call it from a task command.
-- `connections.json` is `{ "version": 1, "connections": { "<id>": … } }`. A change of the stored shape needs a new `STORAGE_VERSION` and a migration in `FileRepository.load_storage`; today a version mismatch is an error.
+- `connections.json` is `{ "version": 2, "connections": { "<id>": … } }`. A connection has a `target` (`{ "kind": "Host", host, port }` or `{ "kind": "Uri", uri }`) and `options` (TLS, CA file, invalid certificates, replica set, server selection timeout; host targets only). A change of the stored shape needs a new `STORAGE_VERSION` and a migration in `repositories/migrations.rs`, called from `FileRepository.load_storage`, which keeps the old file as `connections.v<n>.json`.
+- Before storing, `models/normalize.rs` checks a connection and moves credentials out of a connection string (`models/uri.rs`); a refusal is `RepositoryError::Invalid`, whose text the UI shows. `drivers/client_options.rs` builds the driver's `ClientOptions`: the builder for a host, `ClientOptions::parse` for a string, with the user info put back in just before parsing.
 
 ### Frontend (`src`)
 
@@ -101,13 +103,11 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 - The driver pool never drops a driver. After a failed connect or an edited connection, the old MongoDB client stays until restart. Disconnect in the UI only resets frontend state.
 - `TabsContainer` keys each tab's view by the *active* tab id, so views multiply and run duplicate queries. `Ctrl+Enter` runs in every mounted view (issue #42), and `CommandRegistry.unsubscribe` uses `findIndex(subscriber)`, which calls the subscriber. Details in `docs/features/tabs.md` and `shortcuts.md`.
 - `TabViewQuery` queries `connectionStore.activeConnection`, not the tab's own connection, and tabs survive a switch of connection.
-- The connection field `uri` holds a host. The driver always builds `mongodb://<host>:<port>/?authSource=<db>`; SRV and full connection strings don't work.
-- TypeScript `ConnectionType.ShardedCluster` is `"SharedCluster"`, Rust expects `ShardedCluster`. Harmless only because the UI always sends `Standalone`.
 - `ConnectionServiceIPC.saveConnection`/`saveConnections` call commands that don't exist. `ConnectionRepositoryIPC` is registered and unused.
 - The log level is `Debug` in release builds too. `ConnectionDialog` logs form values, password included, at `trace`.
 - Query filters cross IPC as extended JSON. bson turns `{ $oid }`, `{ $date: "<RFC 3339>" }` and the number wrappers into BSON types; anything it can't read stays a plain object and silently matches nothing.
 - On Linux the keyring needs a Secret Service (GNOME Keyring, KWallet). keyring 4 talks to it through `zbus`; there is no keyutils cache any more.
-- `cargo clippy` reports 13 warnings in code that predates the revival (needless borrows, missing `Default`, an 8-argument command, …). Fix them where you touch the code.
+- `cargo clippy` reports 12 warnings in code that predates the revival (needless borrows, missing `Default`, an 8-argument command, …). Fix them where you touch the code.
 - Change the pinned pnpm with `pnpm self-update <version>` inside the repo, never by hand, or `--frozen-lockfile` fails (pnpm records its version in the lockfile).
 - `gh` is not installed on this machine. The repo is public: read issues and pull requests through `https://api.github.com/repos/WebXIO/monolens/issues` and `/pulls`.
 

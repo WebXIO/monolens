@@ -1,3 +1,4 @@
+pub mod client_options;
 pub mod driver;
 pub mod errors;
 pub mod factory;

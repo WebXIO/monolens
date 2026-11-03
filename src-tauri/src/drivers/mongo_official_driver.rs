@@ -1,5 +1,6 @@
 use crate::{
-    connector::models::{authentication::AuthenticationKind, connection::Connection}, database::models::find_document::FindDocumentsResult, drivers::{
+    connector::models::connection::Connection, database::models::find_document::FindDocumentsResult, drivers::{
+        client_options::client_options,
         driver::{DatabaseDriver, ProgressCallback, TestStage},
         errors::DriverError,
     }
@@ -20,65 +21,24 @@ impl MongoDbOfficialDriver {
             connection,
         }
     }
-
-    fn build_connection_string(&self) -> Result<String, DriverError> {
-        let conn = &self.connection;
-        let mut uri = match url::Url::parse(format!("mongodb://{}", &conn.uri).as_str()) {
-            Ok(res) => res,
-            Err(err) => {
-                log::warn!("Uri malformed: {}", err);
-                return Err(DriverError::UriMalformed(err.to_string()));
-            }
-        };
-
-        uri.set_port(Some(conn.port)).map_err(|_| {
-            DriverError::UriMalformed(format!("Could not set port to {}", conn.port))
-        })?;
-
-        let mut query: Vec<String> = Vec::new();
-
-        match &conn.authentication.kind {
-            AuthenticationKind::BASIC => {
-                uri.set_username(conn.authentication.username.as_deref().unwrap_or("root"))
-                    .map_err(|_| {
-                        DriverError::UriMalformed(String::from("Could not set username"))
-                    })?;
-                uri.set_password(conn.authentication.password.as_deref())
-                    .map_err(|_| {
-                        DriverError::UriMalformed(String::from("Could not set password"))
-                    })?;
-            }
-            AuthenticationKind::NONE => {}
-        };
-
-        let auth_db = conn.authentication.database.as_deref().unwrap_or("admin");
-
-        if !auth_db.is_empty() {
-            query.push(format!("authSource={}", auth_db));
-        }
-
-        uri.set_query(Some(query.join("&").as_str()));
-
-        if cfg!(debug_assertions) {
-            let mut log_uri = uri.clone();
-            if log_uri.password().is_some() {
-                let _ = log_uri.set_password(Some("***"));
-            }
-            log::debug!("Built connection query: {}", log_uri.as_str());
-        }
-
-        Ok(uri.to_string())
-    }
 }
 
 #[async_trait]
 impl DatabaseDriver for MongoDbOfficialDriver {
     async fn connect(&mut self) -> Result<(), DriverError> {
         if self.client.is_none() {
-            let connection_string = self.build_connection_string()?;
+            let options = client_options(&self.connection).await?;
+            // never the credential: hosts and settings only
+            log::debug!(
+                "Client for {}: hosts {:?}, tls {}, replica set {:?}, authentication {}",
+                self.connection.name,
+                options.hosts,
+                options.tls.is_some(),
+                options.repl_set_name,
+                options.credential.is_some(),
+            );
             self.client = Some(
-                Client::with_uri_str(&connection_string)
-                    .await
+                Client::with_options(options)
                     .map_err(|e| DriverError::ConnectionFailed(e.to_string()))?,
             );
         }
@@ -235,5 +195,85 @@ impl DatabaseDriver for MongoDbOfficialDriver {
             .map_err(|_| DriverError::FindDocumentsFailed)?;
 
         Ok(FindDocumentsResult { documents, total_count })
+    }
+}
+
+/// Against a real MongoDB, skipped by default. Run with a server and its root account:
+/// MONGODB_TEST_HOST=127.0.0.1 MONGODB_TEST_PORT=27017 MONGODB_TEST_USER=root MONGODB_TEST_PASSWORD=… cargo test -- --ignored
+#[cfg(test)]
+mod integration {
+    use super::*;
+    use crate::connector::models::{
+        authentication::{AuthenticationKind, AuthenticationOptions},
+        connection::{ConnectionTarget, ConnectorKind},
+        options::ConnectionOptions,
+    };
+
+    fn env(name: &str) -> String {
+        std::env::var(name).unwrap_or_else(|_| panic!("{name} is not set"))
+    }
+
+    fn root(password: Option<String>) -> AuthenticationOptions {
+        AuthenticationOptions {
+            kind: AuthenticationKind::BASIC,
+            username: Some(env("MONGODB_TEST_USER")),
+            password: Some(password.unwrap_or_else(|| env("MONGODB_TEST_PASSWORD"))),
+            database: Some("admin".into()),
+        }
+    }
+
+    fn host() -> ConnectionTarget {
+        ConnectionTarget::Host {
+            host: env("MONGODB_TEST_HOST"),
+            port: env("MONGODB_TEST_PORT").parse().unwrap(),
+        }
+    }
+
+    fn connection(target: ConnectionTarget, authentication: AuthenticationOptions) -> Connection {
+        Connection {
+            id: "integration".into(),
+            name: "integration".into(),
+            connector: ConnectorKind::MongoDb,
+            target,
+            authentication,
+            options: ConnectionOptions {
+                server_selection_timeout_secs: Some(5),
+                ..ConnectionOptions::default()
+            },
+        }
+    }
+
+    async fn connected(connection: Connection) -> MongoDbOfficialDriver {
+        let mut driver = MongoDbOfficialDriver::new(connection);
+        driver.connect().await.unwrap();
+        driver
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn connects_by_host_and_lists_databases() {
+        let driver = connected(connection(host(), root(None))).await;
+        let databases = driver.list_databases().await.unwrap();
+        assert!(databases.contains(&"admin".to_string()), "{databases:?}");
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn connects_by_connection_string_with_separate_credentials() {
+        let uri = format!(
+            "mongodb://{}:{}/?serverSelectionTimeoutMS=5000",
+            env("MONGODB_TEST_HOST"),
+            env("MONGODB_TEST_PORT")
+        );
+        let driver = connected(connection(ConnectionTarget::Uri { uri }, root(None))).await;
+        assert!(driver.list_databases().await.unwrap().contains(&"admin".to_string()));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_wrong_password_is_an_authentication_error() {
+        let driver = connected(connection(host(), root(Some("wrong".into())))).await;
+        let err = driver.list_databases().await.unwrap_err();
+        assert!(err.user_message().starts_with("Authentication failed"), "{err:?}");
     }
 }

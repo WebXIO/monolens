@@ -20,8 +20,8 @@ import { Eye, EyeOff } from '@lucide/vue';
 import { useConnectionStore } from '@/stores/connectionStore';
 import {
   AuthenticationKind,
-  ConnectionType,
   ConnectorKind,
+  defaultConnectionOptions,
   type Connection
 } from '@/domains/connections';
 import { useLogger } from '@/composables/useLogger';
@@ -58,7 +58,7 @@ const dialogDescription = computed(() =>
 
 const formSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  uri: z.string().min(1, 'Host is required'),
+  host: z.string().trim().min(1, 'Host is required'),
   port: z.number().int().min(1).max(65535),
   useAuth: z.boolean(),
   username: z.string(),
@@ -71,7 +71,7 @@ type SubmitAction = { action: 'test' | 'save' };
 
 const defaultValues: FormValues = {
   name: '',
-  uri: 'localhost',
+  host: 'localhost',
   port: 27017,
   useAuth: false,
   username: '',
@@ -107,10 +107,12 @@ watch(() => props.connection, async (conn) => {
     if (useAuth && props.mode === 'edit') {
       password = (await store.getConnectionPassword(conn.id)) ?? '';
     }
+    // connection strings get their own fields with the next step; until then the host field shows them
+    const target = conn.target;
     form.reset({
       name: conn.name,
-      uri: conn.uri,
-      port: conn.port,
+      host: target.kind === 'Host' ? target.host : target.uri,
+      port: target.kind === 'Host' ? target.port : 27017,
       useAuth,
       username: conn.authentication.username || '',
       password,
@@ -132,10 +134,9 @@ const showPassword = ref(false);
 function buildConnectionFromForm(values: FormValues): Omit<Connection, 'id'> {
   return {
     name: values.name,
-    uri: values.uri,
-    port: values.port,
     connector: ConnectorKind.MongoDb,
-    connectionType: ConnectionType.Standalone,
+    target: { kind: 'Host', host: values.host.trim(), port: values.port },
+    options: props.connection?.options ?? defaultConnectionOptions(),
     authentication: {
       kind: values.useAuth ? AuthenticationKind.BASIC : AuthenticationKind.NONE,
       username: values.useAuth && values.username ? values.username : null,
@@ -175,9 +176,9 @@ const useAuth = computed(() => values.value.useAuth);
 const everythingFilled = computed(() => {
   const v = values.value;
   if (v.useAuth) {
-    return Boolean(v.name && v.uri && v.port && v.username && v.password && v.authDatabase);
+    return Boolean(v.name && v.host && v.port && v.username && v.password && v.authDatabase);
   }
-  return Boolean(v.name && v.uri && v.port);
+  return Boolean(v.name && v.host && v.port);
 });
 </script>
 
@@ -210,7 +211,7 @@ const everythingFilled = computed(() => {
         </form.Field>
 
         <div class="grid grid-cols-3 gap-4">
-          <form.Field name="uri">
+          <form.Field name="host">
             <template #default="{ field }">
               <Field class="col-span-2" :data-invalid="isInvalid(field)">
                 <FieldLabel :for="field.name">Host</FieldLabel>
