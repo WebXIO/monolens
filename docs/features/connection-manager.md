@@ -15,7 +15,7 @@ A user saves the MongoDB servers they work with as connections: by host and port
 | `connector` | `MongoDb`, the only kind |
 | `target` | `{ "kind": "Host", host, port }` or `{ "kind": "Uri", uri }`; a stored connection string never has user info |
 | `authentication` | `kind` `NONE` or `BASIC`, `username`, `password` (never stored, see [credential-storage.md](credential-storage.md)), `database` (the authentication database) |
-| `options` | For host targets only: `tls`, `tlsCaFile`, `tlsAllowInvalidCertificates`, `replicaSet`, `serverSelectionTimeoutSecs` (empty is the driver's default, 30 s). A connection string carries its own options |
+| `options` | For host targets only: `tls`, `tlsCaFile`, `tlsAllowInvalidCertificates`, `replicaSet`, `serverSelectionTimeoutSecs` (empty is the driver's default, 30 s; 10 s for the connection test). A connection string carries its own options |
 
 **Where the user manages them**
 

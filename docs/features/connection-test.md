@@ -8,7 +8,7 @@ Before or after saving a connection, the user can check that the server answers 
 
 1. In `ConnectionDialog`, Test Connection validates the form and calls `connectionStore.testConnection` with the form values (including the typed password).
 2. The store chooses a test id (`crypto.randomUUID()`), empties `testStages`, listens to the Tauri event `test-connection-progress`, and calls `ConnectionServiceIPC.testConnection`. That starts `start_test_connection(connection, testId)` through `abortableInvoke`, with `id: ''` because the connection may not be saved yet.
-3. In Rust the task creates its own driver through the factory, not a pooled one, builds the client, and runs `test_connection`. It first reports every stage of `TEST_STAGES` as `pending`, then each result, as events `{ testId, stageIndex, stage }`:
+3. In Rust the task creates its own driver through the factory (`create_for_test`), not a pooled one, builds the client, and runs `test_connection`. Without a timeout of the connection (option field or `serverSelectionTimeoutMS` in the string), this driver waits 10 s for a server instead of the driver's 30 s. It first reports every stage of `TEST_STAGES` as `pending`, then each result, as events `{ testId, stageIndex, stage }`:
 
    | # | Stage | Check | Result |
    |---|---|---|---|
@@ -19,7 +19,7 @@ Before or after saving a connection, the user can check that the server answers 
    | 4 | Connected | — | passed |
 
 4. The store takes only events with its own test id and builds the list from them; when the task finishes, the returned stages replace it.
-5. `TestStagesDisplay` draws a horizontal stepper: a green check for passed, a red cross for failed, a yellow dash for skipped, a spinner on the stage that runs, the detail under the title, and "Starting the test…" before the first event.
+5. `TestStagesDisplay` draws a horizontal stepper: a green check for passed, a red cross for failed, a yellow dash for skipped, a spinner on the stage that runs, from 2 s on its running time in seconds (`useElapsedSeconds`), the detail under the title, and "Starting the test…" before the first event.
 6. A failing stage is reported as failed before the error returns. The store shows the error's `user_message` as a toast ("Authentication failed. …").
 7. While the test runs, Cancel Test replaces the button; it aborts the task and shows "Test cancelled.". Closing the dialog clears the test state.
 
@@ -31,6 +31,7 @@ Before or after saving a connection, the user can check that the server answers 
 - **A cancellable task** (`a14c8fc`, issue #27).
 - **A missing `serverStatus` privilege skips the stage** (`2e7d3e1`): a user who may only read one database can connect and read, so the test must not fail for them. The version comes from `buildInfo`, which every user may run.
 - **The titles exist only in Rust** (`2e7d3e1`): the driver reports all stages as pending first.
+- **The test gives up after 10 s, connecting keeps 30 s** (`37f0aea`): a wrong port sat at "Ping Database" for 30 s and looked like a hang. A connection's own timeout wins in both.
 
 ## Building steps
 
@@ -45,10 +46,11 @@ Before or after saving a connection, the user can check that the server answers 
 | 2026-02-21 | Stages shown as a stepper | `9229c45` |
 | 2026-02-23 | Errors as toasts | `37819e1` |
 | 2026-11-03 | Stage states with skipped, version from `buildInfo`, failed stages marked, test id, titles only in Rust; the synchronous `test_connection` command removed | `2e7d3e1`, `119bf4e` |
+| 2026-11-03 | 10 s server selection timeout for the test, running time on the waiting stage | `37f0aea` |
 
 ## Limits and open points
 
-- There is no timeout of our own. A host that doesn't answer runs into the server selection timeout: the connection's option, else the driver's default (30 s), unless the user cancels.
+- A host that doesn't answer fails after the connection's own timeout, else after 10 s, unless the user cancels. Connecting to it waits the driver's 30 s.
 - The test checks the server, not the rights on a particular database.
 
 ## Where the code is
@@ -56,7 +58,8 @@ Before or after saving a connection, the user can check that the server answers 
 | What | Path |
 |---|---|
 | Stages | `test_connection` and `TEST_STAGES` in `src-tauri/src/drivers/mongo_official_driver.rs`, `TestStage`, `StageStatus` in `src-tauri/src/drivers/driver.rs` |
-| Command and event | `src-tauri/src/database/commands/start_test_connection.rs` |
+| Command and event | `src-tauri/src/database/commands/start_test_connection.rs`, `create_for_test` in `src-tauri/src/drivers/factory.rs` |
+| Test timeout | `TEST_SERVER_SELECTION_TIMEOUT` in `mongo_official_driver.rs`, `fallback_timeout` of `client_options` in `src-tauri/src/drivers/client_options.rs` |
 | Store | `testConnection`, `cancelTest` in `src/stores/connectionStore.ts` |
-| UI | `src/components/connection/ConnectionDialog.vue`, `TestStagesDisplay.vue` |
+| UI | `src/components/connection/ConnectionDialog.vue`, `TestStagesDisplay.vue`, `src/composables/useElapsedSeconds.ts` |
 | Tests | integration tests in `mongo_official_driver.rs`, `src/stores/test/connectionStore.test.ts` |
