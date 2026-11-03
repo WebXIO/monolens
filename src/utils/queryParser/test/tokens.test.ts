@@ -1,6 +1,5 @@
 import { test, expect, it } from "vitest";
 import { generateTokens } from "../generateTokens";
-import { T } from "../types";
 
 test("Test Tokens generation", () => {
   const tokens = generateTokens(`{name: "test", age: 16}`);

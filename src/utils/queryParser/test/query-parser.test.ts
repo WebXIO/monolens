@@ -89,7 +89,7 @@ describe('parseMongoQuery — error handling', () => {
     expect(() => parseMongoDbQuery('{ a 1 }')).toThrow()
   })
 
-  it('throws', () => {
-    parseMongoDbQuery('{ a: 1, }')
+  it('accepts a trailing comma', () => {
+    expect(parseMongoDbQuery('{ a: 1, }')).toEqual({ a: 1 })
   })
 })
