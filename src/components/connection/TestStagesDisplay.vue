@@ -10,6 +10,10 @@ import {
   StepperSeparator,
 } from '@/components/ui/stepper';
 import type { TestStage } from '@/domains/connections';
+import { useElapsedSeconds } from '@/composables/useElapsedSeconds';
+
+// a quick stage shouldn't flash a number
+const SHOW_ELAPSED_AFTER_SECONDS = 2;
 
 const props = defineProps<{
   stages: TestStage[];
@@ -25,6 +29,9 @@ const currentStep = computed(() => {
 
   return props.stages.length + 1;
 });
+
+// how long the running stage has been waiting, e.g. for a server that doesn't answer
+const elapsedSeconds = useElapsedSeconds(() => (props.isLoading ? currentStep.value : null));
 
 function isActiveStage(index: number) {
   return props.isLoading && currentStep.value === index + 1;
@@ -119,6 +126,12 @@ function itemAlignClass(index: number) {
           </StepperTitle>
           <span v-if="stage.detail" class="mt-0.5 text-center text-[11px] leading-tight text-muted-foreground">
             {{ stage.detail }}
+          </span>
+          <span
+            v-else-if="isActiveStage(index) && elapsedSeconds >= SHOW_ELAPSED_AFTER_SECONDS"
+            class="mt-0.5 text-center text-[11px] leading-tight text-muted-foreground tabular-nums"
+          >
+            {{ elapsedSeconds }} s
           </span>
         </StepperItem>
       </template>

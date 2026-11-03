@@ -37,7 +37,7 @@ pub async fn start_test_connection(
         .spawn_task(async move {
             let connection =
                 prepared(connection).map_err(|e| serde_json::to_value(&e).unwrap_or_default())?;
-            let mut driver = DatabaseDriverFactory::create(connection)
+            let mut driver = DatabaseDriverFactory::create_for_test(connection)
                 .map_err(|e| serde_json::to_value(&e).unwrap_or_default())?;
 
             driver

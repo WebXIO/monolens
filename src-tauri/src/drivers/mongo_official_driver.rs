@@ -14,6 +14,7 @@ use mongodb::{
     bson::{doc, Document},
     Client,
 };
+use std::time::Duration;
 
 const TEST_STAGES: [&str; 5] = [
     "Initialize",
@@ -24,6 +25,10 @@ const TEST_STAGES: [&str; 5] = [
 ];
 
 const MAX_LIMIT: i64 = 10_000;
+
+/// Without a timeout of its own, a connection waits the driver's 30 s for a server.
+/// A test should say sooner that nothing answers, e.g. on a wrong port.
+const TEST_SERVER_SELECTION_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The server's own message for a failed command, without the driver's wrapping.
 fn find_failed(error: mongodb::error::Error) -> DriverError {
@@ -43,6 +48,7 @@ fn is_unauthorized(error: &mongodb::error::Error) -> bool {
 pub struct MongoDbOfficialDriver {
     client: Option<Client>,
     connection: Connection,
+    fallback_timeout: Option<Duration>,
 }
 
 impl MongoDbOfficialDriver {
@@ -50,6 +56,15 @@ impl MongoDbOfficialDriver {
         MongoDbOfficialDriver {
             client: None,
             connection,
+            fallback_timeout: None,
+        }
+    }
+
+    /// A driver for the connection test, which gives up sooner when no server answers.
+    pub fn for_test(connection: Connection) -> Self {
+        MongoDbOfficialDriver {
+            fallback_timeout: Some(TEST_SERVER_SELECTION_TIMEOUT),
+            ..Self::new(connection)
         }
     }
 }
@@ -58,14 +73,15 @@ impl MongoDbOfficialDriver {
 impl DatabaseDriver for MongoDbOfficialDriver {
     async fn connect(&mut self) -> Result<(), DriverError> {
         if self.client.is_none() {
-            let options = client_options(&self.connection).await?;
+            let options = client_options(&self.connection, self.fallback_timeout).await?;
             // never the credential: hosts and settings only
             log::debug!(
-                "Client for {}: hosts {:?}, tls {}, replica set {:?}, authentication {}",
+                "Client for {}: hosts {:?}, tls {}, replica set {:?}, timeout {:?}, authentication {}",
                 self.connection.name,
                 options.hosts,
                 options.tls.is_some(),
                 options.repl_set_name,
+                options.server_selection_timeout,
                 options.credential.is_some(),
             );
             self.client = Some(
@@ -293,6 +309,26 @@ mod integration {
         let mut driver = MongoDbOfficialDriver::new(connection);
         driver.connect().await.unwrap();
         driver
+    }
+
+    /// Needs no MongoDB, only a port nothing listens on; slow, so it runs with the others.
+    #[tokio::test]
+    #[ignore]
+    async fn the_test_gives_up_after_its_own_timeout_when_no_server_answers() {
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let mut driver = MongoDbOfficialDriver::for_test(Connection {
+            options: ConnectionOptions::default(),
+            ..connection(ConnectionTarget::Host { host: "127.0.0.1".into(), port }, AuthenticationOptions::default())
+        });
+        driver.connect().await.unwrap();
+
+        let started = std::time::Instant::now();
+        let err = driver.test_connection(Box::new(|_, _| {})).await.unwrap_err();
+
+        assert!(matches!(&err, DriverError::PingFailed(_)), "{err:?}");
+        assert!(err.user_message().starts_with("Connection timed out"), "{}", err.user_message());
+        let waited = started.elapsed();
+        assert!(waited >= TEST_SERVER_SELECTION_TIMEOUT && waited < Duration::from_secs(20), "{waited:?}");
     }
 
     #[tokio::test]

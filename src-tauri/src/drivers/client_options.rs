@@ -16,7 +16,11 @@ const DEFAULT_AUTH_SOURCE: &str = "admin";
 
 /// The driver's options for a connection, without building a URL string by hand.
 /// A connection string is parsed by the driver (an srv string resolves DNS here).
-pub async fn client_options(connection: &Connection) -> Result<ClientOptions, DriverError> {
+/// `fallback_timeout` is the server selection timeout when the connection sets none.
+pub async fn client_options(
+    connection: &Connection,
+    fallback_timeout: Option<Duration>,
+) -> Result<ClientOptions, DriverError> {
     let mut options = match &connection.target {
         ConnectionTarget::Host { host, port } => host_options(host, *port, &connection.options),
         ConnectionTarget::Uri { uri } => {
@@ -28,6 +32,8 @@ pub async fn client_options(connection: &Connection) -> Result<ClientOptions, Dr
     };
 
     options.app_name = Some(APP_NAME.to_string());
+    // a timeout of the option field or of the connection string wins
+    options.server_selection_timeout = options.server_selection_timeout.or(fallback_timeout);
     options.credential = credential(&connection.authentication, options.credential.take());
 
     Ok(options)
@@ -139,7 +145,7 @@ mod tests {
 
     #[tokio::test]
     async fn host_mode_uses_host_and_port_and_driver_defaults() {
-        let options = client_options(&connection(host(), AuthenticationOptions::default(), ConnectionOptions::default()))
+        let options = client_options(&connection(host(), AuthenticationOptions::default(), ConnectionOptions::default()), None)
             .await
             .unwrap();
 
@@ -161,7 +167,7 @@ mod tests {
             server_selection_timeout_secs: Some(5),
         };
 
-        let options = client_options(&connection(host(), AuthenticationOptions::default(), settings)).await.unwrap();
+        let options = client_options(&connection(host(), AuthenticationOptions::default(), settings), None).await.unwrap();
 
         match options.tls {
             Some(Tls::Enabled(tls)) => {
@@ -183,7 +189,7 @@ mod tests {
             ..ConnectionOptions::default()
         };
 
-        let options = client_options(&connection(host(), AuthenticationOptions::default(), settings)).await.unwrap();
+        let options = client_options(&connection(host(), AuthenticationOptions::default(), settings), None).await.unwrap();
 
         match options.tls {
             Some(Tls::Enabled(tls)) => assert_eq!(tls.ca_file_path, None),
@@ -194,7 +200,7 @@ mod tests {
 
     #[tokio::test]
     async fn basic_authentication_sets_the_credential_unencoded() {
-        let options = client_options(&connection(host(), basic(Some("shop")), ConnectionOptions::default()))
+        let options = client_options(&connection(host(), basic(Some("shop")), ConnectionOptions::default()), None)
             .await
             .unwrap();
 
@@ -206,7 +212,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_authentication_database_defaults_to_admin() {
-        let options = client_options(&connection(host(), basic(Some(" ")), ConnectionOptions::default()))
+        let options = client_options(&connection(host(), basic(Some(" ")), ConnectionOptions::default()), None)
             .await
             .unwrap();
         assert_eq!(options.credential.unwrap().source.as_deref(), Some("admin"));
@@ -219,7 +225,7 @@ mod tests {
             AuthenticationOptions::default(),
             // ignored for a connection string
             ConnectionOptions { replica_set: Some("other".into()), ..ConnectionOptions::default() },
-        ))
+        ), None)
         .await
         .unwrap();
 
@@ -236,7 +242,7 @@ mod tests {
             uri("mongodb://h/?authSource=shop&authMechanism=SCRAM-SHA-256"),
             basic(None),
             ConnectionOptions::default(),
-        ))
+        ), None)
         .await
         .unwrap();
 
@@ -248,7 +254,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_form_authentication_database_wins_over_the_string() {
-        let options = client_options(&connection(uri("mongodb://h/?authSource=shop"), basic(Some("admin")), ConnectionOptions::default()))
+        let options = client_options(&connection(uri("mongodb://h/?authSource=shop"), basic(Some("admin")), ConnectionOptions::default()), None)
             .await
             .unwrap();
         assert_eq!(options.credential.unwrap().source.as_deref(), Some("admin"));
@@ -256,7 +262,7 @@ mod tests {
 
     #[tokio::test]
     async fn no_authentication_drops_a_credential_of_the_string() {
-        let options = client_options(&connection(uri("mongodb://h/?authSource=shop"), AuthenticationOptions::default(), ConnectionOptions::default()))
+        let options = client_options(&connection(uri("mongodb://h/?authSource=shop"), AuthenticationOptions::default(), ConnectionOptions::default()), None)
             .await
             .unwrap();
         assert!(options.credential.is_none());
@@ -264,7 +270,7 @@ mod tests {
 
     #[tokio::test]
     async fn uri_mode_round_trips_credentials_with_special_characters() {
-        let options = client_options(&connection(uri("mongodb://h1,h2/shop"), basic(None), ConnectionOptions::default()))
+        let options = client_options(&connection(uri("mongodb://h1,h2/shop"), basic(None), ConnectionOptions::default()), None)
             .await
             .unwrap();
 
@@ -285,8 +291,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_fallback_timeout_applies_only_without_a_timeout_of_the_connection() {
+        let fallback = Some(Duration::from_secs(10));
+        let timeout = |options: ClientOptions| options.server_selection_timeout;
+
+        let plain_host = connection(host(), AuthenticationOptions::default(), ConnectionOptions::default());
+        assert_eq!(timeout(client_options(&plain_host, fallback).await.unwrap()), fallback);
+
+        let host_with_timeout = connection(
+            host(),
+            AuthenticationOptions::default(),
+            ConnectionOptions { server_selection_timeout_secs: Some(5), ..ConnectionOptions::default() },
+        );
+        assert_eq!(timeout(client_options(&host_with_timeout, fallback).await.unwrap()), Some(Duration::from_secs(5)));
+
+        let plain_string = connection(uri("mongodb://h/"), AuthenticationOptions::default(), ConnectionOptions::default());
+        assert_eq!(timeout(client_options(&plain_string, fallback).await.unwrap()), fallback);
+
+        let string_with_timeout = connection(
+            uri("mongodb://h/?serverSelectionTimeoutMS=2000"),
+            AuthenticationOptions::default(),
+            ConnectionOptions::default(),
+        );
+        assert_eq!(timeout(client_options(&string_with_timeout, fallback).await.unwrap()), Some(Duration::from_millis(2000)));
+    }
+
+    #[tokio::test]
     async fn a_malformed_string_is_a_uri_error() {
-        let result = client_options(&connection(uri("mongodb://h/?replicaSet"), AuthenticationOptions::default(), ConnectionOptions::default())).await;
+        let result = client_options(&connection(uri("mongodb://h/?replicaSet"), AuthenticationOptions::default(), ConnectionOptions::default()), None).await;
         assert!(matches!(result, Err(DriverError::UriMalformed(_))));
     }
 }
