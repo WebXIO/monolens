@@ -75,7 +75,7 @@ A user saves the MongoDB servers they work with as connections: by host and port
 | 2026-11-03 | Dialog with both modes and options, form logic in `connectionForm.ts`, confirmation dialog for deleting | `29aceb2` |
 | 2026-11-03 | Several connections at once: the dropdown opens further connections, edit from the sidebar | `afd84c7` |
 | 2026-11-03 | Loaded once at start; reloaded from Rust after an edit | `d5ff9e3` |
-| 2026-11-03 | Review fixes: the auth database stays empty by default (a filled `admin` overrode a string's `authSource`), the edit dialog fills on every opening, `host:port` refused, the test normalizes like saving | `fix: findings of the review` |
+| 2026-11-03 | Review fixes: the auth database stays empty by default (a filled `admin` overrode a string's `authSource`), the edit dialog fills on every opening, `host:port` refused, the test normalizes like saving | `8fe2ca0` |
 
 ## Limits and open points
 
