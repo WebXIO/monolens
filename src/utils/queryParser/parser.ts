@@ -1,10 +1,10 @@
-import { transformFunction } from "./transformFunction"
+import { regexToExtendedJson, transformFunction } from "./transformFunction"
 import { T, Token } from "./types"
 
 export function createParser(tokens: Token[]) {
   let pos = 0
 
-  
+
   const peek = () => tokens[pos]
 
   const consume = (type?: string) => {
@@ -25,6 +25,7 @@ export function createParser(tokens: Token[]) {
     if (token.type === T.LBRACKET) return parseArray()
     if (token.type === T.STRING)   { consume(); return token.value }
     if (token.type === T.NUMBER)   { consume(); return token.value }
+    if (token.type === T.REGEX)    { consume(); return regexToExtendedJson(String(token.value), token.flags ?? '') }
 
     if (token.type === T.IDENT) {
       if (token.value === 'true')  { consume(); return true }
@@ -37,12 +38,21 @@ export function createParser(tokens: Token[]) {
     throw new Error(`Unexpected token: ${token.type}`)
   }
 
+  // a query is one value and nothing after it
+  function parseQuery() {
+    const value = parseValue()
+    if (!check(T.EOF)) {
+      throw new Error(`Unexpected ${peek().type} after the end of the query`)
+    }
+    return value
+  }
+
   function parseObject() {
     consume(T.LBRACE)
     const obj: any = {}
 
     while (!check(T.RBRACE)) {
-      
+
       const keyToken = consume()
       if (keyToken.type !== T.IDENT && keyToken.type !== T.STRING) {
         throw new Error(`Expected object key, got ${keyToken.type}`)
@@ -56,6 +66,7 @@ export function createParser(tokens: Token[]) {
       obj[key] = value
 
       if (check(T.COMMA)) consume()
+      else if (!check(T.RBRACE)) throw new Error(`Expected , or } but got ${peek().type}`)
     }
 
     consume(T.RBRACE)
@@ -69,6 +80,7 @@ export function createParser(tokens: Token[]) {
     while (!check(T.RBRACKET)) {
       arr.push(parseValue())
       if (check(T.COMMA)) consume()
+      else if (!check(T.RBRACKET)) throw new Error(`Expected , or ] but got ${peek().type}`)
     }
 
     consume(T.RBRACKET)
@@ -76,7 +88,12 @@ export function createParser(tokens: Token[]) {
   }
 
   function parseFunctionCall(): any {
-    const name = consume(T.IDENT).value
+    let name = consume(T.IDENT).value
+
+    // `new Date(...)` is the same as `Date(...)` in a query
+    if (name === 'new' && check(T.IDENT)) {
+      name = consume(T.IDENT).value
+    }
 
     if(!name) throw new Error(`Expected value, got undefined`)
 
@@ -90,11 +107,12 @@ export function createParser(tokens: Token[]) {
     while (!check(T.RPAREN)) {
       args.push(parseValue())
       if (check(T.COMMA)) consume()
+      else if (!check(T.RPAREN)) throw new Error(`Expected , or ) but got ${peek().type}`)
     }
 
     consume(T.RPAREN)
     return transformFunction(String(name), args)
   }
 
-  return { parseValue }
+  return { parseValue, parseQuery }
 }

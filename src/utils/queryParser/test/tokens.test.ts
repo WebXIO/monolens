@@ -98,3 +98,41 @@ it("throws on unexpected character", () => {
   expect(() => generateTokens("{")).not.toThrow(); // just brace is fine
   expect(() => generateTokens("@")).toThrow(/Unexpected character/);
 });
+
+it("tokenizes numbers with exponents", () => {
+  expect(generateTokens("1e5 -2.5E-3 7E+2").map((t) => t.value)).toEqual([100000, -0.0025, 700, undefined]);
+});
+
+it("tokenizes dotted identifiers as one identifier", () => {
+  const [tok] = generateTokens("user.address.city");
+  expect(tok).toEqual({ type: "IDENT", value: "user.address.city" });
+});
+
+it("tokenizes a regex literal with its flags", () => {
+  const [tok] = generateTokens("/^a\\/b$/im");
+  expect(tok).toEqual({ type: "REGEX", value: "^a\\/b$", flags: "im" });
+});
+
+it("tokenizes a regex literal without flags", () => {
+  const [tok, next] = generateTokens("/x/,");
+  expect(tok).toEqual({ type: "REGEX", value: "x", flags: "" });
+  expect(next).toEqual({ type: "COMMA" });
+});
+
+it("keeps escaped characters of a string", () => {
+  const [tok] = generateTokens("'it\\'s'");
+  expect(tok).toEqual({ type: "STRING", value: "it's" });
+});
+
+it("throws on an unterminated string", () => {
+  expect(() => generateTokens('"abc')).toThrow(/Unterminated string/);
+  expect(() => generateTokens('"abc\\')).toThrow(/Unterminated string/);
+});
+
+it("throws on an unterminated regex", () => {
+  expect(() => generateTokens("/abc")).toThrow(/Unterminated regular expression/);
+});
+
+it("throws on a lone minus", () => {
+  expect(() => generateTokens("-")).toThrow(/Unexpected character/);
+});
