@@ -6,7 +6,7 @@ Read `docs/README.md` first. `docs/architecture/overview.md` has every IPC comma
 
 ## Repository
 
-Single package, always use pnpm (lockfile v9). The Rust crate lives in `src-tauri`.
+Single package, always use pnpm. It is pinned in `package.json` (`packageManager` and `devEngines.packageManager`, 12.17.0); a plain `pnpm` switches to that version. Build scripts of dependencies only run when `pnpm-workspace.yaml` lists them under `allowBuilds`, else `pnpm install` fails. The Rust crate lives in `src-tauri`.
 
 | Path | Content |
 |---|---|
@@ -104,6 +104,7 @@ Needs Rust and the Tauri prerequisites (`README.md`). For a manual check run a l
 - The log level is `Debug` in release builds too. `ConnectionDialog` logs form values, password included, at `trace`.
 - Query filters cross IPC as extended JSON. bson turns `{ $oid }`, `{ $date: "<RFC 3339>" }` and the number wrappers into BSON types; anything it can't read stays a plain object and silently matches nothing.
 - On Linux the keyring needs a Secret Service (GNOME Keyring, KWallet). `keyring` is built with `vendored`, which compiles OpenSSL.
+- Change the pinned pnpm with `pnpm self-update <version>` inside the repo, never by hand, or `--frozen-lockfile` fails (pnpm records its version in the lockfile).
 - `gh` is not installed on this machine. The repo is public: read issues and pull requests through `https://api.github.com/repos/WebXIO/monolens/issues` and `/pulls`.
 
 ## graphify

@@ -45,5 +45,13 @@
     "vite": "^6.4.1",
     "vitest": "^4.0.18",
     "vue-tsc": "^2.2.12"
-  }
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.17.0",
+      "onFail": "download"
+    }
+  },
+  "packageManager": "pnpm@12.17.0"
 }
