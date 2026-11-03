@@ -72,6 +72,9 @@ pub enum RepositoryError {
 
 #[derive(Debug, Error)]
 pub enum CredentialError {
+    #[error("No password stored for connection {0}")]
+    NotFound(String),
+
     #[error("Keyring error: {0}")]
     Keyring(#[from] keyring::Error),
 

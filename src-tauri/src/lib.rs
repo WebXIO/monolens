@@ -7,6 +7,7 @@ use crate::{
     },
     connector::repositories::credentials::credential_service::CredentialService
 };
+use std::sync::Arc;
 
 use crate::task_manager::task_manager::TaskManager;
 
@@ -46,7 +47,7 @@ pub fn run() {
 
             log::debug!("Load config from path {}", path.display());
 
-            let repository = FileRepository::new(path, CredentialService::new("monolens-connections"));
+            let repository = FileRepository::new(path, Arc::new(CredentialService::new("monolens-connections")));
 
             let state = create_app_state(repository);
             app.manage(state);

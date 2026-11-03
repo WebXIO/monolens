@@ -43,7 +43,7 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 - One command per file in `<module>/commands/<name>.rs`, re-exported by its `mod.rs`.
 - Errors cross IPC as `{ kind, message, user_message }`: `DriverError` (drivers), `CommandError` (connector), `TaskError` (tasks). Each implements `Serialize` by hand. A new error variant needs a `user_message`, and the UI shows only that.
 - Slow work is a task: a `start_*` command passes its future to `TaskManager.spawn_task` and returns the id; the UI waits with `await_task_result` and cancels with `cancel_task`. The future returns `Result<serde_json::Value, serde_json::Value>`, with errors serialized through `serde_json::to_value(&e)`. Follow `start_connect.rs`.
-- Credentials: `get_connections`/`get_connection` never return a password. A command that talks to MongoDB loads it with `hydrate_connection_with_credentials` right before use. The only command that hands a password to the UI is `get_connection_password` (edit dialog).
+- Credentials: `get_connections`/`get_connection` never return a password. A command that talks to MongoDB loads it with `ConnectorRepository::hydrate` right before use. The only command that hands a password to the UI is `get_connection_password` (edit dialog). Passwords go through the `CredentialStore` trait: `CredentialService` is the OS keyring, `MemoryCredentialStore` (tests only) keeps them in memory and can be told to fail.
 - `ConnectionHandler.get_or_connect` keeps one driver per connection id for the life of the process. Nothing removes it yet (see Gotchas).
 - `DatabaseDriver` is the seam for database work. Add a method to the trait, implement it in `MongoDbOfficialDriver`, then call it from a task command.
 - `connections.json` is `{ "version": 1, "connections": { "<id>": … } }`. A change of the stored shape needs a new `STORAGE_VERSION` and a migration in `FileRepository.load_storage`; today a version mismatch is an error.
@@ -71,7 +71,7 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 
 - Every piece of logic gets unit tests, for the regular cases and every edge case you can think of: empty and missing input, boundaries, wrong kinds of values, failing collaborators (MongoDB, keyring, file system).
 - Frontend: vitest in happy-dom (the `test` block of `vite.config.ts`), files `*.test.ts` in a `test/` folder next to the code (as `src/utils/queryParser/test/`, `src/composables/table/test/`). Pull logic out of components into composables or `utils` so it can be tested without mounting. `src/test/setup.ts` mocks Tauri's IPC for every test (`mockIPC` answering `undefined`); a test that needs real answers calls `mockIPC` with its own handler.
-- Rust: `#[cfg(test)] mod tests` in the file, `cargo test`. Abstract MongoDB and the keyring behind traits where a test needs to replace them.
+- Rust: `#[cfg(test)] mod tests` in the file, `cargo test`, async tests with `#[tokio::test]`. Abstract MongoDB and the keyring behind traits where a test needs to replace them. `file_repository.rs` shows the pattern: a `TempDir` per test and a `MemoryCredentialStore`.
 - Untested today, worth covering when touched: `formatCellValue`, `mergeColumnOrder` and the column sizing, `eventToKeyString` and `CommandRegistry`, `tabsStore`, `extractErrorMessage`, `abortableInvoke`; in Rust `TaskManager`, `DriverError::user_message`, `build_connection_string`, `FileRepository`.
 - `vue-tsc` type-checks the test files with `noUnusedLocals`, so an unused import in a test breaks `pnpm build`.
 - End-to-end checks are manual: `pnpm tauri dev` against a local MongoDB.
@@ -104,11 +104,10 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 - The connection field `uri` holds a host. The driver always builds `mongodb://<host>:<port>/?authSource=<db>`; SRV and full connection strings don't work.
 - TypeScript `ConnectionType.ShardedCluster` is `"SharedCluster"`, Rust expects `ShardedCluster`. Harmless only because the UI always sends `Standalone`.
 - `ConnectionServiceIPC.saveConnection`/`saveConnections` call commands that don't exist. `ConnectionRepositoryIPC` is registered and unused.
-- Commands reach the keyring by downcasting the repository to `FileRepository`. Another repository type fails with "Unsupported repository type".
 - The log level is `Debug` in release builds too. `ConnectionDialog` logs form values, password included, at `trace`.
 - Query filters cross IPC as extended JSON. bson turns `{ $oid }`, `{ $date: "<RFC 3339>" }` and the number wrappers into BSON types; anything it can't read stays a plain object and silently matches nothing.
 - On Linux the keyring needs a Secret Service (GNOME Keyring, KWallet). keyring 4 talks to it through `zbus`; there is no keyutils cache any more.
-- `cargo clippy` reports 15 warnings in code that predates the revival (needless borrows, missing `Default`, an 8-argument command, …). Fix them where you touch the code.
+- `cargo clippy` reports 13 warnings in code that predates the revival (needless borrows, missing `Default`, an 8-argument command, …). Fix them where you touch the code.
 - Change the pinned pnpm with `pnpm self-update <version>` inside the repo, never by hand, or `--frozen-lockfile` fails (pnpm records its version in the lockfile).
 - `gh` is not installed on this machine. The repo is public: read issues and pull requests through `https://api.github.com/repos/WebXIO/monolens/issues` and `/pulls`.
 
