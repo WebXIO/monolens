@@ -37,3 +37,28 @@ pnpm install
 ```bash
 pnpm tauri dev
 ```
+
+How Monolens is built, why, and what is planned is documented in [docs/](docs/README.md).
+
+## Knowledge graph for Claude Code (graphify)
+
+[graphify](https://github.com/Graphify-Labs/graphify) gives Claude Code a graph of the code and the docs, which
+it queries before searching files: the skill is in `.claude/skills/graphify/`, the hooks in `.claude/settings.json`,
+the rules at the end of `CLAUDE.md`. The graph (`graphify-out/`) is built on each machine and not committed. Only
+`graphify-out/cache/semantic/` is: what the model read from the docs, so a build pays only for docs that changed.
+`.graphifyignore` keeps `docs/plans/`, generated code, icons and the lockfiles out of the graph.
+
+Once per clone (pipx: `sudo apt install pipx`, then `pipx ensurepath`):
+
+```bash
+pipx install graphifyy==0.9.92
+```
+
+```bash
+graphify hook install
+```
+
+Then build the graph in a Claude Code session in the repo with `/graphify .`. Everyone uses the same version: an
+upgrade can invalidate the stored doc extraction. The git hooks rebuild the code part after commit, checkout,
+merge and rebase, without model calls. After changing docs, run `/graphify . --update` in a session and commit the
+new files in `graphify-out/cache/semantic/`. Without graphify installed the hooks fail and Claude works as before.
