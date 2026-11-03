@@ -56,14 +56,12 @@ describe("ConnectionServiceIPC", () => {
   });
 
   it("finds documents by connection id as a task", async () => {
-    const calls = recordIPC({ documents: [], totalCount: 0 });
+    const calls = recordIPC({ documents: [], totalCount: 0, totalCountEstimated: false });
+    const query = { databaseName: "shop", collectionName: "users", filter: { a: 1 }, sort: { b: -1 }, projection: null, skip: 10, limit: 50 };
 
-    await service.findDocuments("c1", "shop", "users", { a: 1 }, 10, 50);
+    await expect(service.findDocuments("c1", query)).resolves.toEqual({ documents: [], totalCount: 0, totalCountEstimated: false });
 
-    expect(calls[0]).toEqual({
-      cmd: "start_find_documents",
-      args: { connectionId: "c1", databaseName: "shop", collectionName: "users", filter: { a: 1 }, skip: 10, limit: 50 },
-    });
+    expect(calls[0]).toEqual({ cmd: "start_find_documents", args: { connectionId: "c1", query } });
   });
 
   it("tests unsaved form data with an empty id", async () => {

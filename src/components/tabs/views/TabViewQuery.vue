@@ -33,7 +33,7 @@ const viewMode = ref<DocumentViewMode>(DocumentViewMode.TABLE);
 
 const query = ref<string>('{ }');
 const limit = ref<number>(50);
-const result = ref<FindDocumentsResult>({ documents: [], totalCount: 0 });
+const result = ref<FindDocumentsResult>({ documents: [], totalCount: 0, totalCountEstimated: false });
 const queryInputId = 'query-filter-input';
 
 const collectionProperties = ref<string[]>([]);
@@ -67,11 +67,13 @@ async function execute() {
    try {
       const id = await invoke('start_find_documents', {
          connectionId: connectionStore.activeConnection.id,
-         databaseName: tab.context.database,
-         collectionName: tab.context.collection,
-         filter: queryParsed,
-         skip: 0,
-         limit: limit.value,
+         query: {
+            databaseName: tab.context.database,
+            collectionName: tab.context.collection,
+            filter: queryParsed,
+            skip: 0,
+            limit: limit.value,
+         },
       });
 
       result.value = await invoke<FindDocumentsResult>('await_task_result', { id });

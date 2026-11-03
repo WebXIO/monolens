@@ -28,8 +28,11 @@ pub enum DriverError {
     #[error("Unknown driver type")]
     UnknownDriver,
 
-    #[error("Failed to find documents")]
-    FindDocumentsFailed,
+    #[error("Failed to find documents: {0}")]
+    FindDocumentsFailed(String),
+
+    #[error("Invalid query: {0}")]
+    InvalidQuery(String),
 
     #[error("Connection not found: {0}")]
     ConnectionNotFound(String),
@@ -89,7 +92,15 @@ impl DriverError {
                 String::from("The connection URI is invalid. Please check the format.")
             }
             DriverError::UnknownDriver => String::from("Unsupported database driver."),
-            DriverError::FindDocumentsFailed => String::from("Failed to find documents. Check your permissions on this database."),
+            DriverError::FindDocumentsFailed(msg) => {
+                if Self::is_auth_error(msg) || msg.to_lowercase().contains("not authorized") {
+                    String::from("Not allowed to read this collection. Check your permissions on this database.")
+                } else {
+                    // the server's message names the mistake in the query
+                    format!("The query failed: {msg}")
+                }
+            }
+            DriverError::InvalidQuery(msg) => msg.clone(),
             DriverError::ConnectionNotFound(_) => {
                 String::from("This connection no longer exists.")
             }
@@ -131,7 +142,8 @@ impl DriverError {
             DriverError::ServerStatusFailed(_) => "ServerStatusFailed",
             DriverError::UriMalformed(_) => "UriMalformed",
             DriverError::UnknownDriver => "UnknownDriver",
-            DriverError::FindDocumentsFailed => "FindDocumentsFailed",
+            DriverError::FindDocumentsFailed(_) => "FindDocumentsFailed",
+            DriverError::InvalidQuery(_) => "InvalidQuery",
             DriverError::ConnectionNotFound(_) => "ConnectionNotFound",
             DriverError::StorageFailed(_) => "StorageFailed",
             DriverError::CredentialsUnavailable(_) => "CredentialsUnavailable",
@@ -185,6 +197,18 @@ mod tests {
         assert!(DriverError::CredentialsUnavailable("locked".into()).user_message().contains("keyring"));
         assert_eq!(DriverError::ConnectionNotFound("x".into()).user_message(), "This connection no longer exists.");
         assert_eq!(DriverError::StorageFailed("io".into()).user_message(), "Could not read the saved connections.");
+    }
+
+    #[test]
+    fn query_errors_pass_the_server_message_on() {
+        assert_eq!(
+            DriverError::FindDocumentsFailed("unknown top level operator: $foo".into()).user_message(),
+            "The query failed: unknown top level operator: $foo"
+        );
+        assert!(DriverError::FindDocumentsFailed("not authorized on shop to execute command".into())
+            .user_message()
+            .starts_with("Not allowed"));
+        assert_eq!(DriverError::InvalidQuery("The sort must be an object".into()).user_message(), "The sort must be an object");
     }
 
     #[test]

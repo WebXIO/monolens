@@ -3,7 +3,7 @@ import { Result, tryCatch } from "@/utils/result";
 import { invoke } from "@tauri-apps/api/core";
 import { Connection, TestStage } from "../models";
 import { ConnectionService } from "./ConnectionService";
-import { FindDocumentsResult } from "../models/findDocumentsResult";
+import { FindDocumentsResult, FindQuery } from "../models/findDocumentsResult";
 
 export class ConnectionServiceIPC implements ConnectionService {
    listConnections(): Promise<Result<Connection[]>> {
@@ -45,16 +45,12 @@ export class ConnectionServiceIPC implements ConnectionService {
    }
    findDocuments(
       connectionId: string,
-      databaseName: string,
-      collectionName: string,
-      filter: Record<string, unknown>,
-      skip: number,
-      limit: number,
+      query: FindQuery,
       options?: { signal?: AbortSignal }
    ): Promise<FindDocumentsResult> {
       return abortableInvoke<FindDocumentsResult>(
          'start_find_documents',
-         { connectionId, databaseName, collectionName, filter, skip, limit },
+         { connectionId, query },
          { signal: options?.signal },
       );
    }

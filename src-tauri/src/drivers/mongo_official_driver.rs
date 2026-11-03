@@ -1,13 +1,19 @@
 use crate::{
-    connector::models::connection::Connection, database::models::find_document::FindDocumentsResult, drivers::{
+    connector::models::connection::Connection,
+    database::models::find_document::{FindDocumentsResult, FindQuery},
+    drivers::{
         client_options::client_options,
+        documents::{document_to_json, json_to_document},
         driver::{DatabaseDriver, ProgressCallback, StageStatus, TestStage},
         errors::DriverError,
     }
 };
 use async_trait::async_trait;
 use futures::StreamExt;
-use mongodb::{bson::doc, Client};
+use mongodb::{
+    bson::{doc, Document},
+    Client,
+};
 
 const TEST_STAGES: [&str; 5] = [
     "Initialize",
@@ -16,6 +22,18 @@ const TEST_STAGES: [&str; 5] = [
     "Detecting version",
     "Connected",
 ];
+
+const MAX_LIMIT: i64 = 10_000;
+
+/// The server's own message for a failed command, without the driver's wrapping.
+fn find_failed(error: mongodb::error::Error) -> DriverError {
+    let message = match error.kind.as_ref() {
+        mongodb::error::ErrorKind::Command(command) => command.message.clone(),
+        _ => error.to_string(),
+    };
+    log::warn!("find failed: {}", message);
+    DriverError::FindDocumentsFailed(message)
+}
 
 /// MongoDB's error code 13, Unauthorized: the user lacks the privilege for a command.
 fn is_unauthorized(error: &mongodb::error::Error) -> bool {
@@ -163,63 +181,72 @@ impl DatabaseDriver for MongoDbOfficialDriver {
             .as_ref()
             .ok_or(DriverError::ClientNotInitialized)?;
 
-        let database = client.database(&database_name);
+        let database = client.database(database_name);
 
         database.list_collection_names().await.map_err(|e| {
             DriverError::ListCollectionsFailed(database_name.to_string(), e.to_string())
         })
     }
 
-    async fn find_documents(
-        &self,
-        database_name: &str,
-        collection_name: &str,
-        filter: serde_json::Value,
-        skip: u64,
-        limit: i64
-    ) -> Result<FindDocumentsResult, DriverError> {
+    async fn find_documents(&self, query: &FindQuery) -> Result<FindDocumentsResult, DriverError> {
         let client = self
             .client
             .as_ref()
             .ok_or(DriverError::ClientNotInitialized)?;
 
-        let database = client.database(&database_name);
-        let collection = database.collection::<mongodb::bson::Document>(&collection_name);
-
-        let filter_doc = match mongodb::bson::to_document(&filter) {
-            Ok(doc) => doc,
-            Err(e) => {
-                log::warn!("Failed to convert filter to BSON document: {}", e);
-                return Err(DriverError::FindDocumentsFailed);
-            }
-        };
-
-        let mut cursor = collection
-            .find(filter_doc.clone())
-            .skip(skip)
-            .limit(limit)
-            .allow_disk_use(true)
-            .await
-            .map_err(|_| DriverError::FindDocumentsFailed)?;
-
-        let mut documents = Vec::new();
-        while let Some(result) = cursor.next().await {
-            match result {
-                Ok(doc) => documents.push(serde_json::to_value(doc).unwrap_or_default()),
-                Err(_) => {
-                    log::warn!("Failed to read document from cursor");
-                    return Err(DriverError::FindDocumentsFailed);
-                }
-            }
+        if !(1..=MAX_LIMIT).contains(&query.limit) {
+            return Err(DriverError::InvalidQuery(format!(
+                "The limit must be between 1 and {MAX_LIMIT}."
+            )));
         }
 
-        // Get total count of matching documents without skip/limit and give up ownership as we do not need it further
-        let total_count = collection
-            .count_documents(filter_doc)
-            .await
-            .map_err(|_| DriverError::FindDocumentsFailed)?;
+        let filter = json_to_document("filter", &query.filter)?;
+        let sort = json_to_document("sort", &query.sort)?;
+        let projection = json_to_document("projection", &query.projection)?;
 
-        Ok(FindDocumentsResult { documents, total_count })
+        let collection = client
+            .database(&query.database_name)
+            .collection::<Document>(&query.collection_name);
+
+        let find = async {
+            let mut find = collection
+                .find(filter.clone())
+                .skip(query.skip)
+                .limit(query.limit)
+                .allow_disk_use(true);
+            if !sort.is_empty() {
+                find = find.sort(sort);
+            }
+            if !projection.is_empty() {
+                find = find.projection(projection);
+            }
+
+            let mut cursor = find.await.map_err(find_failed)?;
+            let mut documents = Vec::new();
+            while let Some(document) = cursor.next().await {
+                documents.push(document_to_json(document.map_err(find_failed)?));
+            }
+            Ok::<_, DriverError>(documents)
+        };
+
+        // an empty filter counts from the collection's metadata instead of scanning it
+        let estimated = filter.is_empty();
+        let count = async {
+            if estimated {
+                collection.estimated_document_count().await
+            } else {
+                collection.count_documents(filter.clone()).await
+            }
+            .map_err(find_failed)
+        };
+
+        let (documents, total_count) = futures::try_join!(find, count)?;
+
+        Ok(FindDocumentsResult {
+            documents,
+            total_count,
+            total_count_estimated: estimated,
+        })
     }
 }
 
@@ -356,6 +383,94 @@ mod integration {
 
         assert!(err.user_message().starts_with("Authentication failed"), "{err:?}");
         assert_eq!(*failed.lock().unwrap(), Some(1));
+    }
+
+    fn users(filter: serde_json::Value, sort: serde_json::Value, projection: serde_json::Value, skip: u64, limit: i64) -> FindQuery {
+        FindQuery {
+            database_name: "shop".into(),
+            collection_name: "users".into(),
+            filter,
+            sort,
+            projection,
+            skip,
+            limit,
+        }
+    }
+
+    /// Needs the collection shop.users with exactly { name: "Ada", age: 36 } and { name: "Bob", age: 19 }.
+    #[tokio::test]
+    #[ignore]
+    async fn finds_with_sort_projection_and_paging_and_estimates_an_unfiltered_count() {
+        use serde_json::json;
+        let driver = connected(connection(host(), root(None))).await;
+
+        let all = driver
+            .find_documents(&users(json!({}), json!({ "age": 1 }), json!({ "name": 1, "_id": 0 }), 0, 10))
+            .await
+            .unwrap();
+        assert_eq!(all.documents, vec![json!({ "name": "Bob" }), json!({ "name": "Ada" })]);
+        assert_eq!(all.total_count, 2);
+        assert!(all.total_count_estimated);
+
+        let second = driver
+            .find_documents(&users(serde_json::Value::Null, json!({ "age": 1 }), json!({ "name": 1, "_id": 0 }), 1, 1))
+            .await
+            .unwrap();
+        assert_eq!(second.documents, vec![json!({ "name": "Ada" })]);
+        assert_eq!(second.total_count, 2);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn counts_a_filter_exactly() {
+        use serde_json::json;
+        let driver = connected(connection(host(), root(None))).await;
+
+        let older = driver
+            .find_documents(&users(json!({ "age": { "$gt": 20 } }), json!(null), json!({ "_id": 0 }), 0, 10))
+            .await
+            .unwrap();
+
+        assert_eq!(older.documents, vec![json!({ "name": "Ada", "age": 36 })]);
+        assert_eq!(older.total_count, 1);
+        assert!(!older.total_count_estimated);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_broken_query_returns_the_server_message() {
+        use serde_json::json;
+        let driver = connected(connection(host(), root(None))).await;
+
+        let err = driver.find_documents(&users(json!({ "$foo": 1 }), json!(null), json!(null), 0, 10)).await.unwrap_err();
+
+        assert!(err.user_message().contains("unknown top level operator: $foo"), "{}", err.user_message());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_limit_out_of_range_is_refused_before_the_server() {
+        let driver = connected(connection(host(), root(None))).await;
+        let err = driver.find_documents(&users(serde_json::Value::Null, serde_json::Value::Null, serde_json::Value::Null, 0, 0)).await.unwrap_err();
+        assert!(matches!(err, DriverError::InvalidQuery(_)));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn reading_without_permission_says_so() {
+        let reader = AuthenticationOptions {
+            kind: AuthenticationKind::BASIC,
+            username: Some("reader".into()),
+            password: Some("readerpw".into()),
+            database: Some("shop".into()),
+        };
+        let driver = connected(connection(host(), reader)).await;
+        let mut query = users(serde_json::Value::Null, serde_json::Value::Null, serde_json::Value::Null, 0, 10);
+        query.database_name = "other".into();
+
+        let err = driver.find_documents(&query).await.unwrap_err();
+
+        assert!(err.user_message().starts_with("Not allowed"), "{}", err.user_message());
     }
 
     #[tokio::test]

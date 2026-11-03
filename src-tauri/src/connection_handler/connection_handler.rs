@@ -118,7 +118,7 @@ mod tests {
         create_connection::CreateConnection,
         options::ConnectionOptions,
     };
-    use crate::database::models::find_document::FindDocumentsResult;
+    use crate::database::models::find_document::{FindDocumentsResult, FindQuery};
     use crate::drivers::driver::{ProgressCallback, TestStage};
     use async_trait::async_trait;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -163,8 +163,8 @@ mod tests {
             Ok(vec![])
         }
 
-        async fn find_documents(&self, _: &str, _: &str, _: serde_json::Value, _: u64, _: i64) -> Result<FindDocumentsResult, DriverError> {
-            Ok(FindDocumentsResult { documents: vec![], total_count: 0 })
+        async fn find_documents(&self, _: &FindQuery) -> Result<FindDocumentsResult, DriverError> {
+            Ok(FindDocumentsResult { documents: vec![], total_count: 0, total_count_estimated: false })
         }
     }
 

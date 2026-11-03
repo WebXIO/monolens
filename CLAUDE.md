@@ -103,9 +103,9 @@ Needs Rust and the Tauri prerequisites (`README.md`); on Ubuntu 26.04 `sudo apt 
 - `TabsContainer` keys each tab's view by the *active* tab id, so views multiply and run duplicate queries. `Ctrl+Enter` runs in every mounted view (issue #42), and `CommandRegistry.unsubscribe` uses `findIndex(subscriber)`, which calls the subscriber. Details in `docs/features/tabs.md` and `shortcuts.md`.
 - `TabViewQuery` queries `connectionStore.activeConnection`, not the tab's own connection, and tabs survive a switch of connection.
 - The log level is `Debug` in development builds and `Info` in release builds (`lib.rs`).
-- Query filters cross IPC as extended JSON. bson turns `{ $oid }`, `{ $date: "<RFC 3339>" }` and the number wrappers into BSON types; anything it can't read stays a plain object and silently matches nothing.
+- Query filter, sort and projection cross IPC as extended JSON (`FindQuery`); `drivers/documents.rs` turns them into BSON (anything bson can't read stays a plain object, so the parser checks its shell functions) and turns found documents into relaxed extended JSON, with Int64 beyond ±2^53 as `{ "$numberLong": … }`. Find errors carry the server's message.
 - On Linux the keyring needs a Secret Service (GNOME Keyring, KWallet). keyring 4 talks to it through `zbus`; there is no keyutils cache any more.
-- `cargo clippy` reports 7 warnings in code that predates the revival (needless borrows, missing `Default`, an 8-argument command, …). Fix them where you touch the code.
+- `cargo clippy` reports 2 warnings, `module_inception` for `connection_handler/connection_handler.rs` and `task_manager/task_manager.rs`. Keep it at that.
 - Change the pinned pnpm with `pnpm self-update <version>` inside the repo, never by hand, or `--frozen-lockfile` fails (pnpm records its version in the lockfile).
 - `gh` is not installed on this machine. The repo is public: read issues and pull requests through `https://api.github.com/repos/WebXIO/monolens/issues` and `/pulls`.
 

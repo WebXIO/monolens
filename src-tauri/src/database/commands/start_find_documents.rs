@@ -1,6 +1,7 @@
 use crate::{
     AppState,
     connection_handler::connection_handler::ConnectionHandler,
+    database::models::find_document::FindQuery,
     drivers::errors::DriverError, task_manager::task_manager::TaskManager
 };
 use tauri::{Manager, State};
@@ -10,11 +11,7 @@ pub async fn start_find_documents(
     app_handle: tauri::AppHandle,
     task_manager: State<'_, TaskManager>,
     connection_id: String,
-    database_name: String,
-    collection_name: String,
-    filter: serde_json::Value,
-    skip: u64,
-    limit: i64
+    query: FindQuery,
 ) -> Result<String, DriverError> {
     let id = task_manager
         .spawn_task(async move {
@@ -28,7 +25,7 @@ pub async fn start_find_documents(
 
             let driver = driver_lock.lock().await;
             let documents = driver
-                .find_documents(&database_name, &collection_name, filter, skip, limit)
+                .find_documents(&query)
                 .await
                 .map_err(|e| serde_json::to_value(&e).unwrap_or_default())?;
 
