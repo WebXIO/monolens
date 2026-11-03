@@ -20,7 +20,7 @@ import { useConnectionStore } from '@/stores/connectionStore';
 import { useTabsStore } from '@/stores/tabsStore';
 import { parseMongoDbQuery } from '@/utils/queryParser';
 import { invoke } from '@tauri-apps/api/core';
-import { Braces, Loader2, Play, RefreshCcw, TableIcon } from 'lucide-vue-next';
+import { Braces, Loader2, Play, RefreshCcw, TableIcon } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { toast } from "vue-sonner";
 

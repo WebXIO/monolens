@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Database, ChevronDown, Plus, Check, Loader2, X } from 'lucide-vue-next';
+import { Database, ChevronDown, Plus, Check, Loader2, X } from '@lucide/vue';
 import {
   DropdownMenu,
   DropdownMenuContent,

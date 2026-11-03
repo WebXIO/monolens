@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { basicSetup, EditorView } from 'codemirror';
-import { ChevronDown, ChevronRight } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight } from '@lucide/vue';
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { JsonDocument } from '../models/types';
 

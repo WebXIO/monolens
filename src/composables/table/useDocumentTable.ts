@@ -1,10 +1,21 @@
 import {
+   columnOrderingFeature,
+   columnResizingFeature,
+   columnSizingFeature,
+   columnVisibilityFeature,
    createColumnHelper,
-   getCoreRowModel,
-   getSortedRowModel,
-   useVueTable,
+   createSortedRowModel,
+   rowSortingFeature,
+   sortFn_alphanumeric,
+   sortFn_basic,
+   sortFn_datetime,
+   sortFn_text,
+   tableFeatures,
+   useTable,
+   type ColumnDef,
    type ColumnOrderState,
    type SortingState,
+   type Updater,
 } from '@tanstack/vue-table';
 import { useLocalStorage } from '@vueuse/core';
 import { computed, ref, watch, type Ref } from 'vue';
@@ -12,7 +23,25 @@ import { type JsonDocument } from '@/components/documents/models/types';
 import { useColumnSizing, MIN_COL_WIDTH, MAX_COL_WIDTH } from './useColumnSizing';
 import { useFormattedValueCache } from './useFormattedValueCache';
 
-function mergeColumnOrder(saved: string[], current: string[]): string[] {
+// v9 only exposes the APIs of registered features; 'auto' sorting picks from the registered sortFns
+export const documentTableFeatures = tableFeatures({
+   rowSortingFeature,
+   columnOrderingFeature,
+   columnSizingFeature,
+   columnResizingFeature,
+   columnVisibilityFeature,
+   sortedRowModel: createSortedRowModel(),
+   sortFns: {
+      alphanumeric: sortFn_alphanumeric,
+      text: sortFn_text,
+      datetime: sortFn_datetime,
+      basic: sortFn_basic,
+   },
+});
+
+export type DocumentTableFeatures = typeof documentTableFeatures;
+
+export function mergeColumnOrder(saved: string[], current: string[]): string[] {
    const currentSet = new Set(current);
    const ordered = saved.filter((key) => currentSet.has(key));
    const orderedSet = new Set(ordered);
@@ -20,6 +49,10 @@ function mergeColumnOrder(saved: string[], current: string[]): string[] {
       if (!orderedSet.has(key)) ordered.push(key);
    }
    return ordered;
+}
+
+function resolve<T>(updater: Updater<T>, current: T): T {
+   return typeof updater === 'function' ? (updater as (old: T) => T)(current) : updater;
 }
 
 export function useDocumentTable(documents: Ref<JsonDocument[]>, storageKey: Ref<string>) {
@@ -59,18 +92,18 @@ export function useDocumentTable(documents: Ref<JsonDocument[]>, storageKey: Ref
       { immediate: true },
    );
 
-   const columnHelper = createColumnHelper<JsonDocument>();
+   const columnHelper = createColumnHelper<DocumentTableFeatures, JsonDocument>();
 
    const { getFormatted } = useFormattedValueCache(documents);
    const { columnSizing, columnWidths, onColumnSizingChange } = useColumnSizing(documents, columnKeys, getFormatted);
 
-   const columns = computed(() =>
+   const columns = computed<readonly ColumnDef<DocumentTableFeatures, JsonDocument, unknown>[]>(() =>
       columnKeys.value.map((key) =>
          columnHelper.accessor((row) => row[key], {
             id: key,
             header: key,
             cell: (info) => getFormatted(documents.value[info.row.index], info.column.id),
-            sortingFn: 'auto',
+            sortFn: 'auto',
             size: columnWidths.value[key] ?? 150,
             minSize: MIN_COL_WIDTH,
             maxSize: MAX_COL_WIDTH,
@@ -78,43 +111,25 @@ export function useDocumentTable(documents: Ref<JsonDocument[]>, storageKey: Ref
       ),
    );
 
-   const table = useVueTable({
-      get data() {
-         return documents.value;
-      },
-      get columns() {
-         return columns.value;
-      },
-      state: {
-         get sorting() {
-            return sorting.value;
-         },
-         get columnOrder() {
-            return columnOrder.value;
-         },
-         get columnSizing() {
-            return columnSizing.value;
-         },
-      },
-      enableColumnResizing: true,
+   const table = useTable<DocumentTableFeatures, JsonDocument>({
+      features: documentTableFeatures,
+      data: documents,
+      columns,
+      state: computed(() => ({
+         sorting: sorting.value,
+         columnOrder: columnOrder.value,
+         columnSizing: columnSizing.value,
+      })),
       columnResizeMode: 'onChange',
-      onSortingChange: (updaterOrValue) => {
-         sorting.value =
-            typeof updaterOrValue === 'function'
-               ? updaterOrValue(sorting.value)
-               : updaterOrValue;
+      onSortingChange: (updater: Updater<SortingState>) => {
+         sorting.value = resolve(updater, sorting.value);
       },
-      onColumnOrderChange: (updaterOrValue) => {
-         const newOrder =
-            typeof updaterOrValue === 'function'
-               ? updaterOrValue(columnOrder.value)
-               : updaterOrValue;
+      onColumnOrderChange: (updater: Updater<ColumnOrderState>) => {
+         const newOrder = resolve(updater, columnOrder.value);
          columnOrder.value = newOrder;
          savedColumnOrder.value = [...newOrder];
       },
       onColumnSizingChange,
-      getCoreRowModel: getCoreRowModel(),
-      getSortedRowModel: getSortedRowModel(),
    });
 
    return {

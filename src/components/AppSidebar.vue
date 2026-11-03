@@ -3,7 +3,7 @@ import { ref, watch, computed } from 'vue';
 import { SidebarProps, SidebarContent, SidebarGroup, Sidebar } from './ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from "@/components/ui/button"
-import { ChevronDown, Database, RefreshCcw, Loader2, ChevronUp, FileJson, LogOut } from 'lucide-vue-next';
+import { ChevronDown, Database, RefreshCcw, Loader2, ChevronUp, FileJson, LogOut } from '@lucide/vue';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { invoke } from '@tauri-apps/api/core';

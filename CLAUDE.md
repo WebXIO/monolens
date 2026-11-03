@@ -69,7 +69,7 @@ Needs Rust and the Tauri prerequisites (`README.md`). For a manual check run a l
 ## Testing
 
 - Every piece of logic gets unit tests, for the regular cases and every edge case you can think of: empty and missing input, boundaries, wrong kinds of values, failing collaborators (MongoDB, keyring, file system).
-- Frontend: vitest, files `*.test.ts` in a `test/` folder next to the code (as `src/utils/queryParser/test/`). Pull logic out of components into composables or `utils` so it can be tested without mounting.
+- Frontend: vitest in happy-dom (the `test` block of `vite.config.ts`), files `*.test.ts` in a `test/` folder next to the code (as `src/utils/queryParser/test/`, `src/composables/table/test/`). Pull logic out of components into composables or `utils` so it can be tested without mounting.
 - Rust: `#[cfg(test)] mod tests` in the file, `cargo test`. Abstract MongoDB and the keyring behind traits where a test needs to replace them.
 - Untested today, worth covering when touched: `formatCellValue`, `mergeColumnOrder` and the column sizing, `eventToKeyString` and `CommandRegistry`, `tabsStore`, `extractErrorMessage`, `abortableInvoke`; in Rust `TaskManager`, `DriverError::user_message`, `build_connection_string`, `FileRepository`.
 - `vue-tsc` type-checks the test files with `noUnusedLocals`, so an unused import in a test breaks `pnpm build`.
@@ -93,7 +93,10 @@ Needs Rust and the Tauri prerequisites (`README.md`). For a manual check run a l
 
 ## Gotchas
 
-- `pnpm build` (and `pnpm tauri build`) fails on `develop` as of 2026-11-03: `'T' is declared but its value is never read` in `src/utils/queryParser/test/tokens.test.ts`.
+- TypeScript stays on 6.x: `vue-tsc` can't run on TypeScript 7, which no longer ships `lib/tsc`. TypeScript 6 deprecates `baseUrl`, so the tsconfig has `paths` only.
+- Run tools with `pnpm exec`, not `npx`: npm refuses to run in this repo, because `devEngines` names pnpm.
+- TanStack Table 9 only has the APIs of registered features. The table's features are `documentTableFeatures` in `useDocumentTable.ts`; `row.getVisibleCells()`, for example, needs `columnVisibilityFeature`.
+- vue-tsc 3 breaks on a `//` inside a static attribute value (a placeholder like `mongodb+srv://...` made it report errors further down the template).
 - The driver pool never drops a driver. After a failed connect or an edited connection, the old MongoDB client stays until restart. Disconnect in the UI only resets frontend state.
 - `TabsContainer` keys each tab's view by the *active* tab id, so views multiply and run duplicate queries. `Ctrl+Enter` runs in every mounted view (issue #42), and `CommandRegistry.unsubscribe` uses `findIndex(subscriber)`, which calls the subscriber. Details in `docs/features/tabs.md` and `shortcuts.md`.
 - `TabViewQuery` queries `connectionStore.activeConnection`, not the tab's own connection, and tabs survive a switch of connection.

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useTabsStore } from '@/stores/tabsStore';
 import { cn } from '@/lib/utils';
-import { CircleX } from 'lucide-vue-next';
+import { CircleX } from '@lucide/vue';
 import { TabKind } from '@/domains/tabs';
 import TabViewQuery from './views/TabViewQuery.vue';
 import { computed } from 'vue';

@@ -22,7 +22,7 @@ import {
 import Input from '@/components/ui/input/Input.vue';
 import Button from '@/components/ui/button/Button.vue';
 import TestStagesDisplay from './TestStagesDisplay.vue';
-import { Eye, EyeOff } from 'lucide-vue-next';
+import { Eye, EyeOff } from '@lucide/vue';
 
 import { useConnectionStore } from '@/stores/connectionStore';
 import { 
@@ -213,7 +213,7 @@ const everythingFilled = computed(() => {
               <FormControl>
                 <Input 
                   type="text" 
-                  placeholder="localhost or mongodb+srv://..." 
+                  placeholder="localhost" 
                   v-bind="componentField" 
                 />
               </FormControl>

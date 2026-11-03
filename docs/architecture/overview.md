@@ -32,10 +32,10 @@ This file describes `develop` as of 2026-11-03 (`859c252`). `main` is at `efee3a
 | Part | Technology | Path |
 |---|---|---|
 | Rust core | Tauri 2.10, tokio, `mongodb` 3.5 (bson 2.15), `keyring` 3.6, `thiserror`, `tauri-plugin-log`, `tauri-plugin-opener` | `src-tauri/src` |
-| UI | Vue 3.5, Pinia 3, Tailwind 4 with shadcn-vue components on reka-ui, vee-validate + zod, vue-sonner, lucide icons | `src` |
+| UI | Vue 3.5, Pinia 4, Tailwind 4 with shadcn-vue components on reka-ui, vee-validate + zod, vue-sonner, lucide icons (`@lucide/vue`) | `src` |
 | Query editor and JSON view | CodeMirror 6 (`@codemirror/lang-json`, `theme-one-dark`, `autocomplete`) | `src/components/query`, `src/components/documents/json` |
-| Table view | TanStack Table 8 and TanStack Virtual 3 | `src/components/documents/table`, `src/composables/table` |
-| Frontend tests | vitest 4 | `src/utils/queryParser/test` |
+| Table view | TanStack Table 9 and TanStack Virtual 3 | `src/components/documents/table`, `src/composables/table` |
+| Frontend tests | vitest 5 in happy-dom | `test/` folders next to the code |
 | Generated UI kit | shadcn-vue (`components.json`, style `new-york`) | `src/components/ui` |
 
 The app is one window of 1200 × 900 (`src-tauri/tauri.conf.json`), identifier `org.monolens`. In development Vite serves the UI on port 1420 and `pnpm tauri dev` loads it.

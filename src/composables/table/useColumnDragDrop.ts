@@ -1,7 +1,7 @@
 import { ref, type Ref } from 'vue';
-import type { ColumnOrderState, Table } from '@tanstack/vue-table';
+import type { ColumnOrderState } from '@tanstack/vue-table';
 
-export function useColumnDragDrop(table: Table<any>, columnOrder: Ref<ColumnOrderState>) {
+export function useColumnDragDrop(table: { setColumnOrder: (order: ColumnOrderState) => void }, columnOrder: Ref<ColumnOrderState>) {
    const draggedColumnId = ref<string | null>(null);
    const dropTargetColumnId = ref<string | null>(null);
    const didDrag = ref(false);

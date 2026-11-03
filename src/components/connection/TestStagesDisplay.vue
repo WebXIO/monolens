@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Check, X, Loader2, Circle } from 'lucide-vue-next';
+import { Check, X, Loader2, Circle } from '@lucide/vue';
 import {
   Stepper,
   StepperItem,

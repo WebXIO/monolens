@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Database, Plus, Pencil, Trash2, Loader2 } from 'lucide-vue-next';
+import { Database, Plus, Pencil, Trash2, Loader2 } from '@lucide/vue';
 import Button from '@/components/ui/button/Button.vue';
 import ConnectionDialog from './ConnectionDialog.vue';
 import { useConnectionStore } from '@/stores/connectionStore';

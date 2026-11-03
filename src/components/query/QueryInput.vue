@@ -21,7 +21,7 @@ import { useMongoAutoComplete } from '@/domains/mongo';
 import { autocompletion } from "@codemirror/autocomplete";
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from 'codemirror';
-import { X } from 'lucide-vue-next';
+import { X } from '@lucide/vue';
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
